@@ -3,6 +3,8 @@
 import { useState } from "react";
 import AuthButton from "@/components/AuthButton";
 import Tabs from "@/components/Tabs";
+import Chat from "@/components/Chat";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import styles from "./dashboard.module.css";
 
 const TABS = [
@@ -12,6 +14,7 @@ const TABS = [
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("overview");
+  const [chatOpen, setChatOpen] = useState(false);
 
   return (
     <div className={styles.page}>
@@ -21,6 +24,14 @@ export default function DashboardPage() {
           <span className={styles.logoAccent}>Spark</span>Stack
         </a>
         <div className={styles.spacer} />
+        <button
+          className={styles.chatBtn}
+          onClick={() => setChatOpen((v) => !v)}
+          style={chatOpen ? { background: "#f59e0b", borderColor: "#f59e0b", color: "#000" } : undefined}
+        >
+          <AutoAwesomeIcon sx={{ fontSize: 16 }} />
+          <span>AI Chat</span>
+        </button>
         <AuthButton />
         <span className={styles.version}>v0.1.0</span>
       </div>
@@ -44,7 +55,7 @@ export default function DashboardPage() {
                 </p>
                 <div className={styles.comment}>// stack</div>
                 <div className={styles.tagRow}>
-                  {["Next.js 16", "React 19", "TypeScript", "Tailwind", "PostgreSQL", "Drizzle", "MinIO", "Better-Auth", "Docker", "MUI"].map((s) => (
+                  {["Next.js 16", "React 19", "TypeScript", "Tailwind", "PostgreSQL", "Drizzle", "MinIO", "Better-Auth", "Docker", "MUI", "Anthropic", "OpenRouter", "Agent SDK"].map((s) => (
                     <span key={s} className={styles.tag}>{s}</span>
                   ))}
                 </div>
@@ -89,6 +100,7 @@ export default function DashboardPage() {
                 <FeatureRow icon="auth" title="Google OAuth" desc="Better-Auth wired to Drizzle, add providers in lib/auth.ts" />
                 <FeatureRow icon="s3" title="MinIO Object Storage" desc="S3-compatible file storage, helpers in lib/storage.ts" />
                 <FeatureRow icon="docker" title="Docker Production Deploy" desc="Multi-stage Dockerfile, docker-compose.prod.yml ready" />
+                <FeatureRow icon="ai" title="AI Chat (3 providers)" desc="Anthropic API, OpenRouter, or Claude Agent SDK with MCP tools" />
                 <FeatureRow icon="ui" title="Dark IDE Aesthetic" desc="SparkBench-style dark theme with MUI + Tailwind" />
               </div>
             </>
@@ -101,12 +113,28 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* AI Chat panel — slides in from right */}
+      {chatOpen && (
+        <div className={styles.chatPanel}>
+          <Chat
+            open={chatOpen}
+            onClose={() => setChatOpen(false)}
+            suggestions={[
+              "Help me get started",
+              "Explain the project structure",
+              "Add a new API route",
+              "Write a database query",
+            ]}
+          />
+        </div>
+      )}
     </div>
   );
 }
 
 function FeatureRow({ icon, title, desc }: { icon: string; title: string; desc: string }) {
-  const icons: Record<string, string> = { db: "//", auth: ">>", s3: "[]", docker: "<>", ui: "##" };
+  const icons: Record<string, string> = { db: "//", auth: ">>", s3: "[]", docker: "<>", ai: "**", ui: "##" };
   return (
     <div className={styles.featureRow}>
       <span className={styles.featureIcon}>{icons[icon] || "//"}</span>

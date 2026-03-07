@@ -1,0 +1,278 @@
+/* -- Panel -- */
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #1a1a1a;
+  border-left: 1px solid #333;
+}
+
+/* -- Header -- */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: #161616;
+  flex-shrink: 0;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f59e0b;
+  letter-spacing: 0.3px;
+}
+
+.providerBadge {
+  font-size: 10px;
+  padding: 1px 6px;
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 3px;
+  color: #888;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  border-radius: 4px;
+}
+
+.closeBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ccc;
+}
+
+/* -- Messages -- */
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.message {
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 95%;
+}
+
+.messageUser {
+  align-self: flex-end;
+  background: #335533;
+  color: #e0e0e0;
+  padding: 8px 12px;
+  border-radius: 12px 12px 2px 12px;
+}
+
+.messageAssistant {
+  align-self: flex-start;
+  color: #ccc;
+  padding: 4px 0;
+}
+
+.messageAssistant :global(pre) {
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 8px 12px;
+  overflow-x: auto;
+  font-size: 12px;
+  margin: 6px 0;
+}
+
+.messageAssistant :global(code) {
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+  font-size: 12px;
+}
+
+.messageAssistant :global(p) {
+  margin: 4px 0;
+}
+
+/* -- Tool badges -- */
+.toolBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  background: #252526;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  font-size: 11px;
+  margin: 2px 4px 2px 0;
+}
+
+.toolName {
+  color: #f59e0b;
+  font-weight: 600;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+.toolDetail {
+  color: #888;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* -- Streaming indicator -- */
+.streaming {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 12px;
+  color: #888;
+}
+
+.streamingDot {
+  width: 6px;
+  height: 6px;
+  background: #f59e0b;
+  border-radius: 50%;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+/* -- Empty state -- */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 16px;
+  color: #555;
+  padding: 24px;
+}
+
+.emptyIcon {
+  color: #f59e0b;
+  opacity: 0.5;
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  max-width: 400px;
+}
+
+.suggestion {
+  padding: 4px 12px;
+  background: #252526;
+  border: 1px solid #3a3a3a;
+  border-radius: 16px;
+  color: #999;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.suggestion:hover {
+  background: #2a2a2a;
+  color: #ccc;
+  border-color: #f59e0b;
+}
+
+/* -- Input -- */
+.inputRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: #161616;
+  flex-shrink: 0;
+}
+
+.input {
+  flex: 1;
+  resize: none;
+  background: #222;
+  border: 1px solid #444;
+  border-radius: 8px;
+  color: #e0e0e0;
+  font-size: 13px;
+  font-family: inherit;
+  padding: 8px 12px;
+  outline: none;
+  min-height: 38px;
+  max-height: 120px;
+  line-height: 1.4;
+}
+
+.input:focus {
+  border-color: #f59e0b;
+}
+
+.input::placeholder {
+  color: #666;
+}
+
+.sendBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: #335533;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.sendBtn:hover:not(:disabled) {
+  background: #446644;
+}
+
+.sendBtn:disabled {
+  background: #333;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.stopBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: #ef4444;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stopBtn:hover {
+  background: #dc2626;
+}

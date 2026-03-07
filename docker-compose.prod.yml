@@ -55,6 +55,14 @@ services:
       BETTER_AUTH_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      # AI providers (set at least one)
+      AI_PROVIDER: ${AI_PROVIDER:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-anthropic/claude-sonnet-4}
+      USE_AGENT_SDK: ${USE_AGENT_SDK:-false}
+      AGENT_MODEL: ${AGENT_MODEL:-claude-sonnet-4-6}
     depends_on:
       postgres:
         condition: service_healthy

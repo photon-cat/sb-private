@@ -23,6 +23,7 @@ ENV MINIO_BUCKET=sparkstack
 ENV MINIO_USE_SSL=false
 ENV BETTER_AUTH_SECRET=build-placeholder
 ENV BETTER_AUTH_URL=http://localhost:3000
+ENV ANTHROPIC_API_KEY=build-placeholder
 
 RUN npm run build
 
@@ -51,10 +52,20 @@ COPY --from=deps /app/node_modules/esbuild ./node_modules/esbuild
 COPY --from=deps /app/node_modules/@esbuild ./node_modules/@esbuild
 COPY --from=deps /app/node_modules/.bin/drizzle-kit ./node_modules/.bin/drizzle-kit
 
+# Claude Agent SDK (optional — only needed if USE_AGENT_SDK=true)
+COPY --from=deps /app/node_modules/@anthropic-ai ./node_modules/@anthropic-ai
+
+# Install Claude Code CLI (required by Agent SDK to spawn claude subprocess)
+# Comment out this line if you only use the Anthropic API or OpenRouter
+RUN npm install -g @anthropic-ai/claude-code
+
+# Entrypoint for Agent SDK credential setup (optional)
+COPY --chown=nextjs:nodejs docker-entrypoint.sh ./docker-entrypoint.sh
+
 ENV PATH="/app/node_modules/.bin:$PATH"
 
 USER nextjs
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["sh", "./docker-entrypoint.sh"]

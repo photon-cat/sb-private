@@ -223,6 +223,49 @@
   margin-top: 2px;
 }
 
+/* -- Chat button (toolbar) -- */
+
+.chatBtn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: #333;
+  border: 1px solid #555;
+  border-radius: 4px;
+  color: #ccc;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  height: 28px;
+  font-family: inherit;
+  margin-right: 8px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.chatBtn:hover {
+  background: #444;
+  border-color: #f59e0b;
+  color: #fff;
+}
+
+/* -- Chat panel (right side) -- */
+
+.chatPanel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 420px;
+  height: 100vh;
+  z-index: 900;
+  animation: slideIn 0.2s ease;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
 /* -- Empty state -- */
 
 .empty {
