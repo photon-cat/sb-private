@@ -1,6 +1,24 @@
 # SparkStack Template
 
-Project scaffold extracted from SparkBench — dark IDE-aesthetic full-stack starter with AI integration.
+Project scaffold extracted from SparkBench — dark IDE-aesthetic full-stack starter.
+
+## Setup
+
+Run the setup script to choose your template variant:
+
+```bash
+./setup.sh
+```
+
+Three options:
+
+| # | Template | What's included |
+|---|----------|----------------|
+| 1 | **Generic web app** | Core stack only — no AI code |
+| 2 | **Claude Agent SDK** | Claude Code tools (Read/Write/Edit/Bash) + MCP |
+| 3 | **Generic model API** | Anthropic API + OpenRouter (auto-detection) |
+
+The script strips unused code, removes extra dependencies, and renames the project.
 
 ## Stack
 
@@ -9,23 +27,16 @@ Project scaffold extracted from SparkBench — dark IDE-aesthetic full-stack sta
 - **PostgreSQL 16** + **Drizzle ORM**
 - **MinIO** (S3-compatible object storage)
 - **Better-Auth** (Google OAuth, extensible)
-- **AI Chat** (3 providers: Anthropic API, OpenRouter, Claude Agent SDK)
 - **Docker** (multi-stage build, docker-compose)
 
 ## Getting Started
 
+After running `./setup.sh`:
+
 ```bash
-# 1. Copy environment
 cp .env.example .env
-# Edit .env — set at least one AI provider key
-
-# 2. Start Postgres + MinIO
 docker compose up -d
-
-# 3. Install, push schema, dev
-npm install
-npm run db:push
-npm run dev
+npm install && npm run db:push && npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
