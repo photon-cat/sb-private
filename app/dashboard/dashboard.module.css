@@ -1,0 +1,233 @@
+.page {
+  height: 100vh;
+  background: #1e1e1e;
+  color: #ccc;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+/* -- Toolbar header -- */
+
+.header {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  background: #1a1a1a;
+  padding: 0 12px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.35);
+  flex-shrink: 0;
+}
+
+.logo {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: white;
+  text-decoration: none;
+}
+
+.logo:hover {
+  opacity: 0.85;
+}
+
+.logoAccent {
+  color: #f59e0b;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.version {
+  font-size: 11px;
+  color: #666;
+  margin-left: 12px;
+}
+
+/* -- Main -- */
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #222;
+  overflow-y: auto;
+}
+
+.content {
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 20px 24px 48px;
+}
+
+/* -- About -- */
+
+.about {
+  margin-bottom: 24px;
+  font-size: 13px;
+  color: #999;
+  line-height: 1.6;
+  border-bottom: 1px solid #333;
+  padding-bottom: 20px;
+}
+
+.about p {
+  margin-bottom: 8px;
+}
+
+.comment {
+  font-size: 13px;
+  font-weight: 500;
+  color: #ccc;
+  margin-bottom: 8px;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.tag {
+  padding: 2px 8px;
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 3px;
+  font-size: 11px;
+  color: #aaa;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+/* -- Section headers -- */
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #333;
+}
+
+.sectionTitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+/* -- Guide steps -- */
+
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 24px;
+}
+
+.guideStep {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #252526;
+  border: 1px solid #3a3a3a;
+}
+
+.guideStep:first-child {
+  border-radius: 4px 4px 0 0;
+}
+
+.guideStep:last-child {
+  border-radius: 0 0 4px 4px;
+}
+
+.guideNum {
+  width: 20px;
+  height: 20px;
+  background: #335533;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.guideLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e0e0e0;
+  margin-bottom: 2px;
+}
+
+.code {
+  font-size: 12px;
+  color: #f59e0b;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+  background: #1a1a1a;
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid #333;
+}
+
+/* -- Feature list -- */
+
+.featureList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.featureRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.featureRow:hover {
+  background: #252526;
+}
+
+.featureIcon {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f59e0b;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+  flex-shrink: 0;
+  width: 20px;
+  margin-top: 2px;
+}
+
+.featureName {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e0e0e0;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+.featureDesc {
+  font-size: 11px;
+  color: #888;
+  margin-top: 2px;
+}
+
+/* -- Empty state -- */
+
+.empty {
+  color: #555;
+  font-size: 12px;
+  padding: 24px 0;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
