@@ -1,0 +1,7 @@
+node_modules/
+dist/
+test-firmware/build/
+benchmark/wokwi/firmware.bin
+benchmark/wokwi/firmware.elf
+*.wasm
+espressif-qemu/

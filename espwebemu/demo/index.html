@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32 Browser Emulator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'SF Mono', 'Fira Code', monospace; background: #0d1117; color: #c9d1d9; }
+    .container { max-width: 960px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 1.4em; margin-bottom: 8px; color: #58a6ff; }
+    .subtitle { color: #8b949e; margin-bottom: 24px; font-size: 0.85em; }
+    .controls { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    button {
+      background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
+      padding: 6px 16px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 0.85em;
+    }
+    button:hover { background: #30363d; border-color: #58a6ff; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.primary { background: #238636; border-color: #2ea043; color: #fff; }
+    button.primary:hover { background: #2ea043; }
+    button.danger { background: #da3633; border-color: #f85149; color: #fff; }
+    button.danger:hover { background: #f85149; }
+    .status { font-size: 0.8em; color: #8b949e; margin-left: 8px; }
+    .status .running { color: #3fb950; }
+    .status .stopped { color: #f85149; }
+    #serial {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      padding: 16px; height: 400px; overflow-y: auto; white-space: pre-wrap;
+      font-size: 13px; line-height: 1.5; color: #7ee787;
+    }
+    .info-bar {
+      display: flex; justify-content: space-between; margin-top: 8px;
+      font-size: 0.75em; color: #8b949e;
+    }
+    .section { margin-bottom: 24px; }
+    .section-title { font-size: 0.9em; color: #8b949e; margin-bottom: 8px; border-bottom: 1px solid #21262d; padding-bottom: 4px; }
+    .gpio-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+    .gpio-pin {
+      background: #21262d; border: 1px solid #30363d; border-radius: 4px;
+      padding: 4px; text-align: center; font-size: 0.7em;
+    }
+    .gpio-pin.high { background: #238636; border-color: #3fb950; color: #fff; }
+    .gpio-pin.input { border-color: #58a6ff; }
+    .regs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; font-size: 0.75em; }
+    .reg { background: #21262d; padding: 4px 8px; border-radius: 4px; }
+    .reg .name { color: #58a6ff; }
+    .reg .val { color: #ffa657; }
+    .led-section { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding: 16px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; }
+    .led {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #553333, #331111);
+      border: 2px solid #444;
+      transition: all 0.05s;
+      box-shadow: 0 0 4px rgba(0,0,0,0.5);
+    }
+    .led.on {
+      background: radial-gradient(circle at 35% 35%, #ff4444, #cc0000);
+      border-color: #ff6666;
+      box-shadow: 0 0 20px rgba(255,50,50,0.6), 0 0 40px rgba(255,50,50,0.3);
+    }
+    .led-label { font-size: 0.85em; color: #8b949e; }
+    .led-label .pin { color: #58a6ff; }
+    .led-label .state { font-weight: bold; }
+    .led-label .state.on { color: #3fb950; }
+    .led-label .state.off { color: #f85149; }
+    .clock-info { font-size: 0.8em; color: #8b949e; margin-left: auto; }
+    .drop-zone {
+      border: 2px dashed #30363d; border-radius: 8px; padding: 32px;
+      text-align: center; color: #8b949e; margin-bottom: 16px; transition: all 0.2s;
+    }
+    .drop-zone.dragover { border-color: #58a6ff; background: rgba(88,166,255,0.05); }
+    .drop-zone input { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>espwebemu</h1>
+    <p class="subtitle">ESP32 Xtensa LX6 emulator running entirely in the browser</p>
+
+    <div class="section">
+      <div class="drop-zone" id="dropZone">
+        <p>Drop an ESP32 .bin firmware here, or <label for="fileInput" style="color:#58a6ff;cursor:pointer;text-decoration:underline">browse</label></p>
+        <input type="file" id="fileInput" accept=".bin">
+        <p style="margin-top:8px;font-size:0.8em" id="fwInfo">No firmware loaded</p>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="btnRun" class="primary" disabled>Run</button>
+      <button id="btnStop" disabled>Stop</button>
+      <button id="btnStep" disabled>Step (100)</button>
+      <button id="btnReset" disabled>Reset</button>
+      <button id="btnClear">Clear Serial</button>
+      <button id="btnLoadDemo">Load Demo Firmware</button>
+      <span class="status" id="statusText"></span>
+    </div>
+
+    <div class="led-section">
+      <div class="led" id="led2"></div>
+      <div class="led-label">
+        <div>LED on <span class="pin">GPIO 2</span></div>
+        <div>State: <span class="state off" id="ledState">OFF</span></div>
+      </div>
+      <div class="clock-info">
+        <div>Clock: <span id="clockRate">240 MHz</span> (simulated)</div>
+        <div>Effective: <span id="effectiveRate">—</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Serial Output (UART0)</div>
+      <div id="serial"></div>
+      <div class="info-bar">
+        <span id="infoPC">PC: -</span>
+        <span id="infoCycles">Cycles: 0</span>
+        <span id="infoSpeed">Speed: -</span>
+        <span id="infoInstr">Instructions: 0</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">GPIO Pins</div>
+      <div class="gpio-grid" id="gpioGrid"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Registers (a0-a15, windowed)</div>
+      <div class="regs" id="regsGrid"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ESP32Runner } from '../src/index.ts';
+
+    let runner = null;
+    let running = false;
+    let instrCount = 0;
+
+    const serial = document.getElementById('serial');
+    const statusText = document.getElementById('statusText');
+    const btnRun = document.getElementById('btnRun');
+    const btnStop = document.getElementById('btnStop');
+    const btnStep = document.getElementById('btnStep');
+    const btnReset = document.getElementById('btnReset');
+    const btnClear = document.getElementById('btnClear');
+    const btnLoadDemo = document.getElementById('btnLoadDemo');
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fwInfo = document.getElementById('fwInfo');
+    const gpioGrid = document.getElementById('gpioGrid');
+    const regsGrid = document.getElementById('regsGrid');
+
+    // Init GPIO display
+    for (let i = 0; i < 40; i++) {
+      const div = document.createElement('div');
+      div.className = 'gpio-pin';
+      div.id = `gpio${i}`;
+      div.textContent = `G${i}`;
+      gpioGrid.appendChild(div);
+    }
+
+    // Init register display
+    for (let i = 0; i < 16; i++) {
+      const div = document.createElement('div');
+      div.className = 'reg';
+      div.innerHTML = `<span class="name">a${i}</span> <span class="val" id="reg${i}">0x00000000</span>`;
+      regsGrid.appendChild(div);
+    }
+
+    function setStatus(text, cls) {
+      statusText.innerHTML = `<span class="${cls}">${text}</span>`;
+    }
+
+    function updateUI() {
+      if (!runner) return;
+      const cpu = runner.cpu;
+      document.getElementById('infoPC').textContent = `PC: 0x${cpu.pc.toString(16).padStart(8, '0')}`;
+      document.getElementById('infoCycles').textContent = `Cycles: ${cpu.cycles.toLocaleString()}`;
+      document.getElementById('infoInstr').textContent = `Instructions: ${instrCount.toLocaleString()}`;
+      if (running) {
+        document.getElementById('infoSpeed').textContent = `Speed: ${runner.getSpeedPercent().toFixed(1)}%`;
+      }
+
+      // Update registers
+      for (let i = 0; i < 16; i++) {
+        const val = cpu.getAR(i) >>> 0;
+        document.getElementById(`reg${i}`).textContent = `0x${val.toString(16).padStart(8, '0')}`;
+      }
+
+      // Update effective speed
+      if (running) {
+        const pct = runner.getSpeedPercent();
+        const mhz = (pct / 100) * 240;
+        effectiveRate.textContent = `${mhz.toFixed(1)} MHz (${pct.toFixed(1)}% realtime)`;
+      }
+
+      // Update LED from current GPIO state
+      updateLED(runner.gpio.getOutputPin(2));
+
+      // Update GPIO
+      const outReg = runner.gpio.read32(0x04); // GPIO_OUT_REG offset
+      const enableReg = runner.gpio.read32(0x20); // GPIO_ENABLE_REG offset
+      for (let i = 0; i < 32; i++) {
+        const el = document.getElementById(`gpio${i}`);
+        const isOutput = (enableReg >> i) & 1;
+        const isHigh = (outReg >> i) & 1;
+        el.className = 'gpio-pin' + (isOutput && isHigh ? ' high' : '') + (!isOutput ? ' input' : '');
+      }
+    }
+
+    const led2 = document.getElementById('led2');
+    const ledState = document.getElementById('ledState');
+    const effectiveRate = document.getElementById('effectiveRate');
+
+    function updateLED(high) {
+      if (high) {
+        led2.classList.add('on');
+        ledState.textContent = 'ON';
+        ledState.className = 'state on';
+      } else {
+        led2.classList.remove('on');
+        ledState.textContent = 'OFF';
+        ledState.className = 'state off';
+      }
+    }
+
+    function loadFirmware(data) {
+      const binData = new Uint8Array(data);
+
+      // Validate magic byte
+      if (binData[0] !== 0xE9) {
+        fwInfo.textContent = `Invalid firmware (magic: 0x${binData[0].toString(16)}, expected 0xE9)`;
+        return;
+      }
+
+      runner = new ESP32Runner(binData);
+      instrCount = 0;
+
+      // Hook GPIO pin changes for LED on GPIO 2
+      runner.gpio.onPinChange = (pin, high) => {
+        if (pin === 2) updateLED(high);
+      };
+
+      runner.onSerialOutput = (ch) => {
+        if (ch === 10) {
+          serial.textContent += '\n';
+        } else if (ch >= 32 && ch < 127) {
+          serial.textContent += String.fromCharCode(ch);
+        } else if (ch === 13) {
+          // ignore CR
+        } else {
+          serial.textContent += `\\x${ch.toString(16).padStart(2, '0')}`;
+        }
+        serial.scrollTop = serial.scrollHeight;
+      };
+
+      fwInfo.textContent = `Loaded: ${binData.length} bytes, entry: 0x${runner.cpu.pc.toString(16)}, ${binData[1]} segments`;
+
+      btnRun.disabled = false;
+      btnStep.disabled = false;
+      btnReset.disabled = false;
+      setStatus('Ready', 'stopped');
+      updateUI();
+    }
+
+    // File input
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      file.arrayBuffer().then(loadFirmware);
+    });
+
+    // Drag and drop
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) file.arrayBuffer().then(loadFirmware);
+    });
+
+    // Load demo firmware
+    btnLoadDemo.addEventListener('click', async () => {
+      btnLoadDemo.disabled = true;
+      btnLoadDemo.textContent = 'Loading...';
+      try {
+        const resp = await fetch('/test-firmware/build/hello_esp32.bin');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.arrayBuffer();
+        loadFirmware(data);
+      } catch (e) {
+        fwInfo.textContent = `Failed to load demo: ${e.message}`;
+      }
+      btnLoadDemo.disabled = false;
+      btnLoadDemo.textContent = 'Load Demo Firmware';
+    });
+
+    // Run button
+    btnRun.addEventListener('click', () => {
+      if (!runner || running) return;
+      running = true;
+      btnRun.disabled = true;
+      btnStop.disabled = false;
+      setStatus('Running', 'running');
+
+      runner.execute((cpu) => {
+        instrCount += runner.workUnitCycles;
+        updateUI();
+        if (!running) runner.stop();
+      });
+    });
+
+    // Stop button
+    btnStop.addEventListener('click', () => {
+      running = false;
+      if (runner) runner.stop();
+      btnRun.disabled = false;
+      btnStop.disabled = true;
+      setStatus('Stopped', 'stopped');
+      updateUI();
+    });
+
+    // Step button (100 instructions)
+    btnStep.addEventListener('click', () => {
+      if (!runner) return;
+      try {
+        runner.runCycles(100);
+        instrCount += 100;
+      } catch (e) {
+        serial.textContent += `\n[ERROR] ${e.message}\n`;
+      }
+      updateUI();
+    });
+
+    // Reset button
+    btnReset.addEventListener('click', () => {
+      if (!runner) return;
+      running = false;
+      runner.stop();
+      runner.reset();
+      instrCount = 0;
+      serial.textContent = '';
+      btnRun.disabled = false;
+      btnStop.disabled = true;
+      setStatus('Reset', 'stopped');
+      updateUI();
+    });
+
+    // Clear serial
+    btnClear.addEventListener('click', () => { serial.textContent = ''; });
+  </script>
+</body>
+</html>
