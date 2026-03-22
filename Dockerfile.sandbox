@@ -13,11 +13,20 @@ USER sandbox
 # Pre-cache atmelavr platform, toolchain, and Arduino framework
 RUN platformio platform install atmelavr
 
-# Do a dummy build to trigger framework-arduino-avr download and cache it
+# Pre-cache espressif32 platform and toolchain
+RUN platformio platform install espressif32
+
+# Do dummy builds to trigger framework downloads and cache them
 RUN mkdir -p /tmp/dummy/src && \
     echo '[env:uno]\nplatform = atmelavr\nboard = uno\nframework = arduino' > /tmp/dummy/platformio.ini && \
     echo '#include <Arduino.h>\nvoid setup(){}\nvoid loop(){}' > /tmp/dummy/src/main.cpp && \
     cd /tmp/dummy && platformio run -e uno && \
+    rm -rf /tmp/dummy
+
+RUN mkdir -p /tmp/dummy/src && \
+    printf '[env:esp32dev]\nplatform = espressif32\nboard = esp32dev\nframework = arduino\n' > /tmp/dummy/platformio.ini && \
+    echo '#include <Arduino.h>\nvoid setup(){}\nvoid loop(){}' > /tmp/dummy/src/main.cpp && \
+    cd /tmp/dummy && platformio run -e esp32dev && \
     rm -rf /tmp/dummy
 
 # Pre-install commonly used libraries so builds don't need network access.

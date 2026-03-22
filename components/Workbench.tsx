@@ -16,11 +16,15 @@ const SplitPane = dynamic(() => import("./SplitPane"), { ssr: false });
 interface WorkbenchProps {
   diagram: Diagram | null;
   runner: AVRRunnerLike | null;
-  status: "idle" | "compiling" | "running" | "paused" | "error";
+  status: "idle" | "compiling" | "running" | "paused" | "error" | "compiled";
   serialOutput: string;
   sketchCode: string;
   diagramJson: string;
   pcbText: string | null;
+  firmwareBin?: string | null;
+  firmwareName?: string | null;
+  firmwareHex?: string | null;
+  chipConfigs?: Map<string, import("@/lib/chip-runtime").CustomChipConfig> | null;
   onStart: () => void;
   onStop: () => void;
   onPause: () => void;
@@ -60,6 +64,7 @@ interface WorkbenchProps {
   mcuId?: string;
   mcuOptions?: { id: string; label: string }[];
   onMcuChange?: (id: string) => void;
+  board?: string;
   librariesTxt?: string;
   onLibrariesChange?: (text: string) => void;
   sparkyOpen?: boolean;
@@ -88,6 +93,10 @@ export default function Workbench({
   sketchCode,
   diagramJson,
   pcbText,
+  firmwareBin,
+  firmwareName,
+  firmwareHex,
+  chipConfigs,
   onStart,
   onStop,
   onPause,
@@ -127,6 +136,7 @@ export default function Workbench({
   mcuId,
   mcuOptions,
   onMcuChange,
+  board,
   librariesTxt,
   onLibrariesChange,
   sparkyOpen,
@@ -226,6 +236,10 @@ export default function Workbench({
                 status={status}
                 serialOutput={serialOutput}
                 pcbText={pcbText}
+                firmwareBin={firmwareBin}
+                firmwareName={firmwareName}
+                firmwareHex={firmwareHex}
+                chipConfigs={chipConfigs}
                 onPcbSave={onPcbSave}
                 onStart={onStart}
                 onStop={onStop}
@@ -257,6 +271,7 @@ export default function Workbench({
                 mcuId={mcuId}
                 mcuOptions={mcuOptions}
                 onMcuChange={onMcuChange}
+                board={board}
                 librariesTxt={librariesTxt}
                 onLibrariesChange={onLibrariesChange}
                 projectId={projectId}

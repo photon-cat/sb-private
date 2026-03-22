@@ -15,7 +15,13 @@ import { logActivity } from "@/lib/logger";
 const PIO_CMD = process.env.PIO_CMD || "/usr/bin/platformio";
 const SANDBOX_ENABLED = process.env.SANDBOX_ENABLED === "true";
 
-const VALID_BOARDS = ["uno", "nano", "mega", "atmega328p", "leonardo", "micro", "pro", "promini"];
+const AVR_BOARDS = ["uno", "nano", "mega", "atmega328p", "leonardo", "micro", "pro", "promini"];
+const ESP32_BOARDS = ["esp32dev", "esp32-s3-devkitc-1", "nodemcu-32s", "esp32-c3-devkitm-1"];
+const VALID_BOARDS = [...AVR_BOARDS, ...ESP32_BOARDS];
+
+function getPlatform(board: string): "atmelavr" | "espressif32" {
+  return ESP32_BOARDS.includes(board) ? "espressif32" : "atmelavr";
+}
 const VALID_FILENAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 const VALID_LIB_NAME = /^[a-zA-Z0-9_.@\/ -]+$/;
 
@@ -126,6 +132,32 @@ const HEADER_TO_LIB: Record<string, string> = {
   "idlers.h": "jim-lee/LC_baseTools",
   "IRremote.h": "Arduino-IRremote/Arduino-IRremote",
   "IRremoteInt.h": "Arduino-IRremote/Arduino-IRremote",
+
+  // ESP32-specific (built-in to ESP32 Arduino core)
+  "WiFi.h": "",  // built-in for ESP32, not available on AVR
+  "WiFiClient.h": "",
+  "WiFiServer.h": "",
+  "WiFiUdp.h": "",
+  "WebServer.h": "",
+  "ESPmDNS.h": "",
+  "BLEDevice.h": "",
+  "BLEUtils.h": "",
+  "BLEServer.h": "",
+  "BluetoothSerial.h": "",
+  "esp_wifi.h": "",
+  "esp_system.h": "",
+  "esp_sleep.h": "",
+  "driver/ledc.h": "",
+  "driver/adc.h": "",
+  "HTTPClient.h": "",
+  "AsyncTCP.h": "me-no-dev/AsyncTCP",
+  "ESPAsyncWebServer.h": "me-no-dev/ESPAsyncWebServer",
+  "PubSubClient.h": "knolleary/PubSubClient",
+  "ArduinoOTA.h": "",
+  "Update.h": "",
+  "Preferences.h": "",
+  "SPIFFS.h": "",
+  "FS.h": "",
 };
 
 /** Extract #include headers from source code and return PlatformIO lib deps. */
@@ -219,18 +251,20 @@ export async function POST(
     const libSection = SANDBOX_ENABLED
       ? `lib_extra_dirs = /home/sandbox/.platformio/lib`
       : `lib_deps =\n${libDepsStr}`;
-    const pioIni = `[env:uno]
-platform = atmelavr
-board = uno
-framework = arduino
-${libSection}
 
-[env:atmega328p]
-platform = atmelavr
-board = uno
-framework = arduino
-${libSection}
-`;
+    const platform = getPlatform(board);
+
+    // Generate platformio.ini environments for all supported boards
+    const avrEnvs = AVR_BOARDS.map((b) => {
+      const pioBoard = b === "atmega328p" ? "uno" : b;
+      return `[env:${b}]\nplatform = atmelavr\nboard = ${pioBoard}\nframework = arduino\n${libSection}\n`;
+    }).join("\n");
+
+    const esp32Envs = ESP32_BOARDS.map((b) => {
+      return `[env:${b}]\nplatform = espressif32\nboard = ${b}\nframework = arduino\nmonitor_speed = 115200\n${libSection}\n`;
+    }).join("\n");
+
+    const pioIni = `${avrEnvs}\n${esp32Envs}`;
     await writeFile(path.join(BUILD_DIR, "platformio.ini"), pioIni);
 
     // Ensure build directories exist
@@ -284,13 +318,16 @@ ${libSection}
     let result: { code: number; stdout: string; stderr: string };
     let sandboxArtifacts: Map<string, Buffer> | undefined;
 
+    const firmwareExt = platform === "espressif32" ? "bin" : "hex";
+    const firmwareFile = `firmware.${firmwareExt}`;
+
     if (SANDBOX_ENABLED) {
       const sbResult = await runProjectBuild(project.id, {
         projectDir: BUILD_DIR,
         command: ["platformio", "run", "-e", board],
         timeout: 120_000,
         artifactPaths: [
-          `.pio/build/${board}/firmware.hex`,
+          `.pio/build/${board}/${firmwareFile}`,
           `.pio/build/${board}/firmware.elf`,
         ],
       });
@@ -347,18 +384,35 @@ ${libSection}
       });
     }
 
-    // Read hex file (from sandbox artifacts or local filesystem)
+    // Read firmware file (from sandbox artifacts or local filesystem)
+    const firmwareArtifactKey = `.pio/build/${board}/${firmwareFile}`;
     let hex: string;
-    if (sandboxArtifacts?.has(`.pio/build/${board}/firmware.hex`)) {
-      hex = sandboxArtifacts.get(`.pio/build/${board}/firmware.hex`)!.toString("utf-8");
+    let bin: string | undefined;
+
+    if (platform === "espressif32") {
+      // ESP32: read .bin as base64
+      let binBuffer: Buffer;
+      if (sandboxArtifacts?.has(firmwareArtifactKey)) {
+        binBuffer = sandboxArtifacts.get(firmwareArtifactKey)!;
+      } else {
+        const binPath = path.join(BUILD_DIR, ".pio", "build", board, firmwareFile);
+        binBuffer = await readFile(binPath);
+      }
+      bin = binBuffer.toString("base64");
+      hex = ""; // no hex for ESP32
     } else {
-      const hexPath = path.join(BUILD_DIR, ".pio", "build", board, "firmware.hex");
-      hex = await readFile(hexPath, "utf-8");
+      // AVR: read .hex as text
+      if (sandboxArtifacts?.has(firmwareArtifactKey)) {
+        hex = sandboxArtifacts.get(firmwareArtifactKey)!.toString("utf-8");
+      } else {
+        const hexPath = path.join(BUILD_DIR, ".pio", "build", board, firmwareFile);
+        hex = await readFile(hexPath, "utf-8");
+      }
     }
 
-    // Extract source map for debug mode
+    // Extract source map for debug mode (AVR only — needs avr-objdump)
     let sourceMap: { file: string; line: number; address: number }[] | undefined;
-    if (data.debug) {
+    if (data.debug && platform === "atmelavr") {
       try {
         // When sandboxed, write the ELF artifact to disk for objdump
         const elfPath = path.join(BUILD_DIR, ".pio", "build", board, "firmware.elf");
@@ -390,9 +444,10 @@ ${libSection}
       }
     }
 
-    // Upload firmware.hex to MinIO
-    const hexKey = `builds/${buildId}/firmware.hex`;
-    await uploadFile(project.id, hexKey, hex);
+    // Upload firmware to MinIO
+    const hexKey = `builds/${buildId}/${firmwareFile}`;
+    const uploadContent = platform === "espressif32" ? bin! : hex;
+    await uploadFile(project.id, hexKey, uploadContent);
 
     // Record successful build
     await db.insert(builds).values({
@@ -407,14 +462,17 @@ ${libSection}
 
     logActivity("build.success", {
       projectId: project.id,
-      metadata: { board, buildId },
+      metadata: { board, buildId, platform },
       durationMs: Date.now() - buildStart,
     });
 
     return NextResponse.json({
       success: true,
-      firmware: "firmware.hex",
+      firmware: firmwareFile,
       hex,
+      ...(bin ? { bin } : {}),
+      platform,
+      simulatable: platform === "atmelavr",
       stdout: result.stdout,
       stderr: result.stderr,
       ...(sourceMap ? { sourceMap } : {}),

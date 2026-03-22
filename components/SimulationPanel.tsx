@@ -12,6 +12,7 @@ import LibraryManager from "./LibraryManager";
 import styles from "./SimulationPanel.module.css";
 import { Diagram, DiagramConnection } from "@/lib/diagram-parser";
 import type { AVRRunnerLike } from "@/lib/pin-mapping";
+import { useWebFlash } from "@/hooks/useWebFlash";
 import type { WiredComponent } from "@/lib/wire-components";
 import type { ToolType } from "@/hooks/useWireDrawing";
 import type { UseDebuggerReturn } from "@/hooks/useDebugger";
@@ -41,9 +42,13 @@ const PCB3DViewer = dynamic(() => import("./PCB3DViewer"), {
 interface SimulationPanelProps {
   diagram: Diagram | null;
   runner: AVRRunnerLike | null;
-  status: "idle" | "compiling" | "running" | "paused" | "error";
+  status: "idle" | "compiling" | "running" | "paused" | "error" | "compiled";
   serialOutput: string;
   pcbText: string | null;
+  firmwareBin?: string | null;
+  firmwareName?: string | null;
+  firmwareHex?: string | null;
+  chipConfigs?: Map<string, import("@/lib/chip-runtime").CustomChipConfig> | null;
   onPcbSave: (text: string) => void;
   onStart: () => void;
   onStop: () => void;
@@ -75,6 +80,7 @@ interface SimulationPanelProps {
   mcuId?: string;
   mcuOptions?: { id: string; label: string }[];
   onMcuChange?: (id: string) => void;
+  board?: string;
   librariesTxt?: string;
   onLibrariesChange?: (text: string) => void;
   projectId?: string;
@@ -89,6 +95,10 @@ export default function SimulationPanel({
   status,
   serialOutput,
   pcbText,
+  firmwareBin,
+  firmwareName,
+  firmwareHex,
+  chipConfigs,
   onPcbSave,
   onStart,
   onStop,
@@ -120,6 +130,7 @@ export default function SimulationPanel({
   mcuId,
   mcuOptions,
   onMcuChange,
+  board,
   librariesTxt,
   onLibrariesChange,
   projectId,
@@ -131,6 +142,13 @@ export default function SimulationPanel({
   const [activeTool, setActiveTool] = useState<ToolType>("cursor");
   const [selectedConnectionIdx, setSelectedConnectionIdx] = useState<number | null>(null);
   const [wiredComponents, setWiredComponents] = useState<Map<string, WiredComponent>>(new Map());
+
+  const { isSupported: webSerialSupported, isFlashing, progress: flashProgress, flash: flashToDevice } = useWebFlash();
+
+  const handleFlash = useCallback(() => {
+    if (!firmwareHex) return;
+    flashToDevice(firmwareHex, board || "uno");
+  }, [firmwareHex, flashToDevice, board]);
 
   const simTabs = useMemo(() => [
     { id: "simulation", label: "Diagram" },
@@ -198,6 +216,18 @@ export default function SimulationPanel({
 
   const debugActive = !!(debugMode && debugState && debugState.status !== "idle");
 
+  const handleDownloadFirmware = useCallback(() => {
+    if (!firmwareBin || !firmwareName) return;
+    const bytes = Uint8Array.from(atob(firmwareBin), (c) => c.charCodeAt(0));
+    const blob = new Blob([bytes], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = firmwareName;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [firmwareBin, firmwareName]);
+
   const statusLabel =
     status === "compiling"
       ? "Compiling..."
@@ -207,7 +237,9 @@ export default function SimulationPanel({
           ? "Paused"
           : status === "error"
             ? "Error"
-            : "Stopped";
+            : status === "compiled"
+              ? "Compiled"
+              : "Stopped";
 
   return (
     <div className={styles.panel}>
@@ -237,6 +269,7 @@ export default function SimulationPanel({
                   onFinishPlacing={onFinishPlacing}
                   showGrid={showGrid}
                   mcuId={mcuId}
+                  chipConfigs={chipConfigs}
                   simRunning={status === "running" || status === "paused"}
                   onWiredComponentsChange={setWiredComponents}
                 />
@@ -252,10 +285,59 @@ export default function SimulationPanel({
                         ? styles.compiling
                         : status === "error"
                           ? styles.error
-                          : ""
+                          : status === "compiled"
+                            ? styles.running
+                            : ""
                   }`}
                 />
                 <span>{statusLabel}</span>
+                {status === "compiled" && firmwareBin && (
+                  <button
+                    onClick={handleDownloadFirmware}
+                    style={{
+                      marginLeft: 8,
+                      padding: "2px 8px",
+                      fontSize: 11,
+                      background: "#2563eb",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 3,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Download {firmwareName || "firmware.bin"}
+                  </button>
+                )}
+                {webSerialSupported && firmwareHex && (status === "running" || status === "paused" || status === "compiled") && (
+                  <button
+                    onClick={handleFlash}
+                    disabled={isFlashing}
+                    style={{
+                      marginLeft: 8,
+                      padding: "2px 8px",
+                      fontSize: 11,
+                      background: isFlashing ? "#444" : "#16a34a",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 3,
+                      cursor: isFlashing ? "wait" : "pointer",
+                    }}
+                  >
+                    {isFlashing
+                      ? `Flashing ${flashProgress?.percent ?? 0}%`
+                      : "Flash to Arduino"}
+                  </button>
+                )}
+                {flashProgress?.stage === "error" && (
+                  <span style={{ marginLeft: 8, fontSize: 11, color: "#ef4444" }}>
+                    {flashProgress.message}
+                  </span>
+                )}
+                {flashProgress?.stage === "done" && (
+                  <span style={{ marginLeft: 8, fontSize: 11, color: "#22c55e" }}>
+                    {flashProgress.message}
+                  </span>
+                )}
               </div>
 
               {/* Controls */}

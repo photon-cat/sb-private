@@ -61,10 +61,16 @@ export interface MCUInfo {
 }
 
 const MCU_REGISTRY: Record<string, { boardId: string; pinStyle: "arduino" | "avr-port"; label: string; simulatable: boolean }> = {
+  // AVR boards
   "wokwi-arduino-uno":   { boardId: "uno",        pinStyle: "arduino",   label: "Arduino Uno",   simulatable: true },
   "wokwi-arduino-nano":  { boardId: "uno",        pinStyle: "arduino",   label: "Arduino Nano",  simulatable: true },
   "wokwi-arduino-mega":  { boardId: "mega",       pinStyle: "arduino",   label: "Arduino Mega",  simulatable: false },
   "sb-atmega328":        { boardId: "atmega328p",  pinStyle: "avr-port",  label: "ATmega328P",    simulatable: true },
+  // ESP32 boards
+  "wokwi-esp32-devkit-v1":  { boardId: "esp32dev",             pinStyle: "arduino", label: "ESP32 DevKit V1",   simulatable: false },
+  "sb-esp32":               { boardId: "esp32dev",             pinStyle: "arduino", label: "ESP32",             simulatable: false },
+  "sb-esp32-s3":            { boardId: "esp32-s3-devkitc-1",  pinStyle: "arduino", label: "ESP32-S3",          simulatable: false },
+  "sb-esp32-c3":            { boardId: "esp32-c3-devkitm-1",  pinStyle: "arduino", label: "ESP32-C3",          simulatable: false },
 };
 
 /**

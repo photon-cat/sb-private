@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { Diagram, DiagramPart, DiagramConnection, DiagramLabel } from "@/lib/diagram-parser";
+import { findMCUs } from "@/lib/diagram-parser";
 import type { AVRRunnerLike } from "@/lib/pin-mapping";
+import { mapArduinoPin, mapAtmega328Pin } from "@/lib/pin-mapping";
 import {
   wireComponents,
   cleanupWiring,
@@ -30,6 +32,7 @@ import {
 } from "@/lib/constants";
 import { registerDipChips } from "./DipChip";
 import { registerLogicGates } from "./LogicGates";
+import { registerCustomChipElement } from "./CustomChipElement";
 import SensorPanel from "./SensorPanel";
 
 let elementsLoaded = false;
@@ -99,6 +102,7 @@ export interface DiagramCanvasProps {
   onZoomOut?: () => void;
   runner: AVRRunnerLike | null;
   mcuId?: string;
+  chipConfigs?: Map<string, import("@/lib/chip-runtime").CustomChipConfig> | null;
   simRunning?: boolean;
   onWiredComponentsChange?: (wired: Map<string, WiredComponent>) => void;
 }
@@ -125,6 +129,7 @@ export default function DiagramCanvas({
   onZoomOut,
   runner,
   mcuId,
+  chipConfigs,
   simRunning,
   onWiredComponentsChange,
 }: DiagramCanvasProps) {
@@ -404,6 +409,15 @@ export default function DiagramCanvas({
   useEffect(() => {
     ensureElementsLoaded().then(() => setReady(true));
   }, []);
+
+  // Register custom chip elements when chipConfigs change
+  useEffect(() => {
+    if (!chipConfigs) return;
+    for (const [, config] of chipConfigs) {
+      const partType = "chip-" + config.chipJson.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
+      registerCustomChipElement(partType, config.chipJson.pins, config.chipJson.name);
+    }
+  }, [chipConfigs]);
 
   // Ref for wire color change
   const onWireColorChangeRef = useRef(onWireColorChange);
@@ -735,6 +749,16 @@ export default function DiagramCanvas({
     const wired = wireComponents(runner, diagram, mcuId);
     wiredRef.current = wired;
 
+    // Wire custom chips (async — WASM instantiation)
+    if (chipConfigs && chipConfigs.size > 0) {
+      const mcus = findMCUs(diagram);
+      const target = mcus.find((m) => m.id === mcuId) || mcus.find((m) => m.simulatable);
+      const pinMapper = target?.pinStyle === "avr-port" ? mapAtmega328Pin : mapArduinoPin;
+      import("@/lib/chip-runtime").then(({ wireCustomChipsAsync }) => {
+        wireCustomChipsAsync(runner, diagram, mcuId || target?.id || "uno", pinMapper, wired, chipConfigs);
+      });
+    }
+
     // Collect sensor parts for SensorPanel
     const sensors: { id: string; type: string; wc: WiredComponent }[] = [];
     for (const [id, wc] of wired) {
@@ -851,7 +875,7 @@ export default function DiagramCanvas({
       setSensorEntries([]);
       onWiredComponentsChange?.(new Map());
     };
-  }, [runner, diagram]);
+  }, [runner, diagram, chipConfigs]);
 
   // Clean up placement opacity
   useEffect(() => {

@@ -102,6 +102,10 @@ export interface SourceMapEntry {
 export interface BuildResult {
   success: boolean;
   hex: string;
+  bin?: string;           // base64-encoded .bin for ESP32
+  platform?: "atmelavr" | "espressif32";
+  simulatable?: boolean;  // false for ESP32
+  firmware?: string;      // filename: "firmware.hex" or "firmware.bin"
   error?: string;
   stdout?: string;
   stderr?: string;
@@ -243,6 +247,31 @@ export async function buildProject(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sketch, files, board, librariesTxt, debug }),
+  });
+  return res.json();
+}
+
+// ── Custom Chip Compilation ─────────────────────────────────────
+
+export interface ChipCompileResult {
+  success: boolean;
+  wasm?: string; // base64
+  size?: number;
+  error?: string;
+  stdout?: string;
+  stderr?: string;
+}
+
+export async function compileChip(
+  projectId: string,
+  chipName: string,
+  source: string,
+  files?: { name: string; content: string }[],
+): Promise<ChipCompileResult> {
+  const res = await fetch(`/api/projects/${projectId}/compile-chip`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chipName, source, files }),
   });
   return res.json();
 }

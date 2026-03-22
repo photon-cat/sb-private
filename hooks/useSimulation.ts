@@ -3,9 +3,11 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { Diagram } from "@/lib/diagram-parser";
 import type { AVRRunner } from "@/lib/avr-runner";
-import { buildProject } from "@/lib/api";
+import { buildProject, compileChip } from "@/lib/api";
+import { findChipFiles } from "@/lib/chip-json";
+import type { CustomChipConfig } from "@/lib/chip-runtime";
 
-export type SimulationStatus = "idle" | "compiling" | "running" | "paused" | "error";
+export type SimulationStatus = "idle" | "compiling" | "running" | "paused" | "error" | "compiled";
 
 export interface UseSimulationOptions {
   projectId: string;
@@ -20,6 +22,10 @@ export interface UseSimulationReturn {
   status: SimulationStatus;
   serialOutput: string;
   runner: AVRRunner | null;
+  firmwareBin: string | null;   // base64 .bin for ESP32 download
+  firmwareName: string | null;  // "firmware.bin" or "firmware.hex"
+  firmwareHex: string | null;   // raw Intel HEX string for AVR flashing
+  chipConfigs: Map<string, CustomChipConfig> | null; // compiled custom chips
   handleStart: () => Promise<void>;
   handleStop: () => void;
   handlePause: () => void;
@@ -38,6 +44,10 @@ export function useSimulation({
   const [status, setStatus] = useState<SimulationStatus>("idle");
   const [serialOutput, setSerialOutput] = useState("");
   const [runner, setRunner] = useState<AVRRunner | null>(null);
+  const [firmwareBin, setFirmwareBin] = useState<string | null>(null);
+  const [firmwareName, setFirmwareName] = useState<string | null>(null);
+  const [firmwareHex, setFirmwareHex] = useState<string | null>(null);
+  const [chipConfigs, setChipConfigs] = useState<Map<string, CustomChipConfig> | null>(null);
   const runnerRef = useRef<AVRRunner | null>(null);
 
   const handleStart = useCallback(async () => {
@@ -55,6 +65,41 @@ export function useSimulation({
         if (buildResult.stderr) errMsg += `\n${buildResult.stderr}\n`;
         setSerialOutput(errMsg);
         return;
+      }
+
+      // ESP32 / non-simulatable: compile-only, offer download
+      if (buildResult.simulatable === false) {
+        setFirmwareBin(buildResult.bin || null);
+        setFirmwareName(buildResult.firmware || "firmware.bin");
+        setStatus("compiled");
+        setSerialOutput("Build successful! Simulation is not available for this board.\nUse the download button to get the firmware binary.\n");
+        return;
+      }
+
+      // Store hex for flashing via Web Serial
+      setFirmwareHex(buildResult.hex || null);
+
+      // Compile custom chips (if any .chip.json + .chip.c pairs exist)
+      const chipFiles = findChipFiles(projectFiles);
+      if (chipFiles.length > 0) {
+        const configs = new Map<string, CustomChipConfig>();
+        for (const chip of chipFiles) {
+          const result = await compileChip(projectId, chip.chipName, chip.source);
+          if (!result.success) {
+            setStatus("error");
+            setSerialOutput(`Chip compile error (${chip.chipName}): ${result.error}\n`);
+            return;
+          }
+          const wasmBytes = Uint8Array.from(atob(result.wasm!), (c) => c.charCodeAt(0)).buffer;
+          // Map by part ID — find the matching part in the diagram
+          const matchingPart = diagram.parts.find((p) => p.type === chip.partType);
+          if (matchingPart) {
+            configs.set(matchingPart.id, { chipJson: chip.chipJson, wasmBytes });
+          }
+        }
+        setChipConfigs(configs.size > 0 ? configs : null);
+      } else {
+        setChipConfigs(null);
       }
 
       const { AVRRunner } = await import("@/lib/avr-runner");
@@ -128,6 +173,10 @@ export function useSimulation({
     status,
     serialOutput,
     runner,
+    firmwareBin,
+    firmwareName,
+    firmwareHex,
+    chipConfigs,
     handleStart,
     handleStop,
     handlePause,

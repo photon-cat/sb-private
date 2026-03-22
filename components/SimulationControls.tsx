@@ -25,7 +25,7 @@ import HelpIcon from "@mui/icons-material/Help";
 import AddPartPanel from "./AddPartPanel";
 import type { AVRRunnerLike } from "@/lib/pin-mapping";
 
-type Status = "idle" | "compiling" | "running" | "paused" | "error";
+type Status = "idle" | "compiling" | "running" | "paused" | "error" | "compiled";
 
 interface SimulationControlsProps {
   status: Status;

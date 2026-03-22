@@ -84,11 +84,12 @@ export default function ProjectPage() {
   useEffect(() => {
     if (!diagram) return;
     const mcus = findMCUs(diagram);
-    const simulatable = mcus.filter((m) => m.simulatable);
-    setMcuOptions(simulatable.map((m) => ({ id: m.id, label: m.label })));
-    // If current target isn't in the list, pick first simulatable (Wokwi: first in parts order)
-    if (!mcuTarget || !simulatable.find((m) => m.id === mcuTarget)) {
-      setMcuTarget(simulatable[0]?.id);
+    // Show all MCUs (including non-simulatable like ESP32) so users can select build target
+    setMcuOptions(mcus.map((m) => ({ id: m.id, label: m.label })));
+    // If current target isn't in the list, pick first simulatable, then first overall
+    if (!mcuTarget || !mcus.find((m) => m.id === mcuTarget)) {
+      const simulatable = mcus.filter((m) => m.simulatable);
+      setMcuTarget(simulatable[0]?.id || mcus[0]?.id);
     }
   }, [diagram, mcuTarget]);
 
@@ -172,6 +173,10 @@ export default function ProjectPage() {
     status,
     serialOutput,
     runner,
+    firmwareBin,
+    firmwareName,
+    firmwareHex,
+    chipConfigs,
     handleStart,
     handleStop,
     handlePause,
@@ -1168,6 +1173,10 @@ export default function ProjectPage() {
         sketchCode={sketchCode}
         diagramJson={diagramJson}
         pcbText={pcbText}
+        firmwareBin={firmwareBin}
+        firmwareName={firmwareName}
+        firmwareHex={firmwareHex}
+        chipConfigs={chipConfigs}
         onStart={handleStart}
         onStop={handleStop}
         onPause={handlePause}
@@ -1207,6 +1216,7 @@ export default function ProjectPage() {
         mcuId={mcuTarget}
         mcuOptions={mcuOptions}
         onMcuChange={setMcuTarget}
+        board={mcuBoardId}
         librariesTxt={librariesTxt}
         onLibrariesChange={handleLibrariesChange}
         sparkyOpen={sparkyOpen}

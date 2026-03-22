@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "author": "SparkBench",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-arduino-uno",
+      "id": "uno",
+      "top": 183,
+      "left": 20,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-dht22",
+      "id": "dht",
+      "top": 30,
+      "left": -30,
+      "attrs": {}
+    },
+    {
+      "type": "board-ssd1306",
+      "id": "oled",
+      "top": 10,
+      "left": 150,
+      "attrs": {}
+    }
+  ],
+  "connections": [
+    ["dht:VCC", "uno:5V", "red", ["v16", "*", "h0"]],
+    ["dht:GND", "uno:GND.1", "black", ["v12", "*", "h0"]],
+    ["dht:SDA", "uno:2", "green", ["v-16", "*", "h0"]],
+
+    ["oled:VCC", "uno:5V", "red", ["v20", "*", "h0"]],
+    ["oled:GND", "uno:GND.2", "black", ["v24", "*", "h0"]],
+    ["oled:SDA", "uno:A4", "blue", ["v-20", "*", "h0"]],
+    ["oled:SCL", "uno:A5", "purple", ["v-24", "*", "h0"]]
+  ]
+}
