@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "author": "SparkBench",
+  "editor": "sparkbench",
+  "parts": [
+    { "id": "uno", "type": "wokwi-arduino-uno", "top": 0, "left": 0, "attrs": {} },
+    { "id": "chip1", "type": "chip-magic8", "top": -50, "left": 260, "attrs": {} }
+  ],
+  "connections": [
+    [ "uno:GND.1", "chip1:GND", "black",  [] ],
+    [ "uno:5V",    "chip1:VCC", "red",    [] ],
+    [ "uno:A4",    "chip1:SDA", "green",  [] ],
+    [ "uno:A5",    "chip1:SCL", "yellow", [] ]
+  ]
+}

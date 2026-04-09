@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "author": "SparkBench",
+  "editor": "sparkbench",
+  "parts": [
+    { "id": "uno", "type": "wokwi-arduino-uno", "top": 0, "left": 0, "attrs": {} },
+    { "id": "inv1", "type": "chip-inverter", "top": -50, "left": 250, "attrs": {} }
+  ],
+  "connections": [
+    [ "uno:8",     "inv1:IN",  "green",  [] ],
+    [ "uno:9",     "inv1:OUT", "yellow", [] ],
+    [ "uno:5V",    "inv1:VCC", "red",    [] ],
+    [ "uno:GND.1", "inv1:GND", "black",  [] ]
+  ]
+}

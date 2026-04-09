@@ -5,7 +5,7 @@ import type { Diagram } from "@/lib/diagram-parser";
 import type { AVRRunner } from "@/lib/avr-runner";
 import { buildProject, compileChip } from "@/lib/api";
 import { findChipFiles } from "@/lib/chip-json";
-import type { CustomChipConfig } from "@/lib/chip-runtime";
+import type { CustomChipConfig, CustomChipRuntime } from "@/lib/chip-runtime";
 
 export type SimulationStatus = "idle" | "compiling" | "running" | "paused" | "error" | "compiled";
 
@@ -26,6 +26,8 @@ export interface UseSimulationReturn {
   firmwareName: string | null;  // "firmware.bin" or "firmware.hex"
   firmwareHex: string | null;   // raw Intel HEX string for AVR flashing
   chipConfigs: Map<string, CustomChipConfig> | null; // compiled custom chips
+  chipRuntimes: Map<string, CustomChipRuntime>;      // live chip runtime instances (for setAttr, etc.)
+  setChipRuntimes: (runtimes: Map<string, CustomChipRuntime>) => void;
   handleStart: () => Promise<void>;
   handleStop: () => void;
   handlePause: () => void;
@@ -48,6 +50,7 @@ export function useSimulation({
   const [firmwareName, setFirmwareName] = useState<string | null>(null);
   const [firmwareHex, setFirmwareHex] = useState<string | null>(null);
   const [chipConfigs, setChipConfigs] = useState<Map<string, CustomChipConfig> | null>(null);
+  const [chipRuntimes, setChipRuntimes] = useState<Map<string, CustomChipRuntime>>(new Map());
   const runnerRef = useRef<AVRRunner | null>(null);
 
   const handleStart = useCallback(async () => {
@@ -177,6 +180,8 @@ export function useSimulation({
     firmwareName,
     firmwareHex,
     chipConfigs,
+    chipRuntimes,
+    setChipRuntimes,
     handleStart,
     handleStop,
     handlePause,

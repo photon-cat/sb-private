@@ -103,6 +103,10 @@ export interface DiagramCanvasProps {
   runner: AVRRunnerLike | null;
   mcuId?: string;
   chipConfigs?: Map<string, import("@/lib/chip-runtime").CustomChipConfig> | null;
+  /** All project files (sketch, headers, chip files). Used to pre-register custom chip elements before sim runs. */
+  projectFiles?: { name: string; content: string }[];
+  /** Called after custom chips finish instantiating so the host can call setAttr on them from UI controls */
+  onChipRuntimesReady?: (runtimes: Map<string, import("@/lib/chip-runtime").CustomChipRuntime>) => void;
   simRunning?: boolean;
   onWiredComponentsChange?: (wired: Map<string, WiredComponent>) => void;
 }
@@ -130,6 +134,8 @@ export default function DiagramCanvas({
   runner,
   mcuId,
   chipConfigs,
+  projectFiles,
+  onChipRuntimesReady,
   simRunning,
   onWiredComponentsChange,
 }: DiagramCanvasProps) {
@@ -194,8 +200,35 @@ export default function DiagramCanvas({
   const handlePartMove = useCallback(
     (partId: string, top: number, left: number) => {
       onPartMove?.(partId, top - ORIGIN_PX, left - ORIGIN_PX);
+      // Re-flow bend hints for every wire whose start/end is on this part.
+      // Without this, moving a part leaves the old hints intact so wires
+      // drift off pins and float through empty space.
+      if (diagram && onUpdateConnectionRef.current) {
+        // Defer one frame so computePinsAndWires has fresh pin positions.
+        requestAnimationFrame(() => {
+          if (!computePinsRef.current) return;
+          computePinsRef.current(diagram);
+          // After computePinsAndWires runs it updates the `wires` state which
+          // we can't synchronously read inside a useCallback — re-derive hints
+          // from the current RenderedWire[] via the setter's functional form.
+          setWires((current) => {
+            const updater = onUpdateConnectionRef.current;
+            if (!updater) return current;
+            for (const w of current) {
+              if (!w.fromRef.startsWith(`${partId}:`) && !w.toRef.startsWith(`${partId}:`)) continue;
+              const hints = pathToHints(w.points);
+              // Mutate the connection in-place via the parent callback.
+              const conn = diagram.connections[w.connectionIndex];
+              if (!conn) continue;
+              const [from, to, color] = conn;
+              updater(w.connectionIndex, [from, to, color, hints]);
+            }
+            return current;
+          });
+        });
+      }
     },
-    [onPartMove],
+    [onPartMove, diagram],
   );
   const handlePartSelectFromDrag = useCallback(
     (partId: string) => {
@@ -410,26 +443,91 @@ export default function DiagramCanvas({
     ensureElementsLoaded().then(() => setReady(true));
   }, []);
 
-  // Register custom chip elements when chipConfigs change
+  // Register custom chip elements when chipConfigs change (after a build)
   useEffect(() => {
     if (!chipConfigs) return;
     for (const [, config] of chipConfigs) {
       const partType = "chip-" + config.chipJson.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
-      registerCustomChipElement(partType, config.chipJson.pins, config.chipJson.name);
+      const extra = config.chipJson as {
+        pinPositions?: Record<string, { x: number; y: number }>;
+        bodySize?: { width: number; height: number };
+        pinTemplate?: "numeric-dip" | "alpha-dip";
+        defaultPinCount?: number;
+      };
+      registerCustomChipElement(
+        partType,
+        config.chipJson.pins,
+        config.chipJson.name,
+        undefined,
+        extra.pinPositions,
+        extra.bodySize,
+        extra.pinTemplate
+          ? {
+              template: extra.pinTemplate,
+              defaultPinCount: extra.defaultPinCount ?? config.chipJson.pins.length,
+            }
+          : undefined,
+      );
     }
   }, [chipConfigs]);
+
+  // Pre-register custom chip elements from .chip.json files in projectFiles,
+  // before any build runs. This ensures the chip part renders (and its wires
+  // resolve) as soon as the user opens the project, not just after Build & Run.
+  //
+  // Also picks up an optional <name>.chip.svg breakout art file, which
+  // replaces the generic DIP visual with a chip-specific breakout board.
+  useEffect(() => {
+    if (!projectFiles) return;
+    const fileMap = new Map(projectFiles.map((f) => [f.name, f.content]));
+    for (const f of projectFiles) {
+      if (!f.name.endsWith(".chip.json")) continue;
+      try {
+        const def = JSON.parse(f.content) as {
+          name?: string;
+          pins?: string[];
+          pinPositions?: Record<string, { x: number; y: number }>;
+          bodySize?: { width: number; height: number };
+          pinTemplate?: "numeric-dip" | "alpha-dip";
+          defaultPinCount?: number;
+        };
+        if (!def.name || !Array.isArray(def.pins)) continue;
+        const baseName = f.name.replace(/\.chip\.json$/, "");
+        const breakoutSvg = fileMap.get(`${baseName}.chip.svg`);
+        const partType = "chip-" + def.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
+        registerCustomChipElement(
+          partType,
+          def.pins,
+          def.name,
+          breakoutSvg,
+          def.pinPositions,
+          def.bodySize,
+          def.pinTemplate
+            ? {
+                template: def.pinTemplate,
+                defaultPinCount: def.defaultPinCount ?? def.pins.length,
+              }
+            : undefined,
+        );
+      } catch {
+        // Skip malformed chip.json silently — the build/compile path will report errors.
+      }
+    }
+  }, [projectFiles]);
 
   // Ref for wire color change
   const onWireColorChangeRef = useRef(onWireColorChange);
   onWireColorChangeRef.current = onWireColorChange;
 
-  // Helper: apply zoom centered on viewport center
-  const applyZoomStep = useCallback((factor: number) => {
+  // Helper: apply zoom centered on the cursor (or viewport center as a
+  // fallback when no cursor position is provided, e.g. from +/- keyboard).
+  // The point under `focusX`/`focusY` in viewport coords stays stationary.
+  const applyZoomStep = useCallback((factor: number, focusX?: number, focusY?: number) => {
     const vp = viewportRef.current;
     if (!vp) return;
     const rect = vp.getBoundingClientRect();
-    const mx = (rect.width - RULER_SIZE) / 2;
-    const my = (rect.height - RULER_SIZE) / 2;
+    const mx = focusX !== undefined ? focusX - RULER_SIZE : (rect.width - RULER_SIZE) / 2;
+    const my = focusY !== undefined ? focusY - RULER_SIZE : (rect.height - RULER_SIZE) / 2;
     const oldZoom = zoomRef.current;
     const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom * factor));
     const contentX = mx / oldZoom + panStateRef.current.x;
@@ -528,10 +626,12 @@ export default function DiagramCanvas({
         onDuplicatePart?.(selectedPartId);
       } else if (e.key === "=" || e.key === "+") {
         e.preventDefault();
-        applyZoomStep(1.15);
+        const c = lastCursorRef.current;
+        applyZoomStep(1.15, c?.x, c?.y);
       } else if (e.key === "-" || e.key === "_") {
         e.preventDefault();
-        applyZoomStep(1 / 1.15);
+        const c = lastCursorRef.current;
+        applyZoomStep(1 / 1.15, c?.x, c?.y);
       } else if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         fitToWindow();
@@ -541,7 +641,11 @@ export default function DiagramCanvas({
     return () => window.removeEventListener("keydown", handleKey);
   }, [onToolChange, selectedPartId, onDeletePart, onPartSelect, onPartRotate, onDuplicatePart, isDrawing, cancelDrawing, selectedWireIdx, wires, onDeleteConnection, applyZoomStep, fitToWindow]);
 
-  // Zoom with scroll wheel
+  // Track last cursor position over the viewport so keyboard zoom shortcuts
+  // (+/-) can also center on the mouse, not just the viewport center.
+  const lastCursorRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Zoom with scroll wheel — centered on the cursor.
   useEffect(() => {
     const vp = viewportRef.current;
     if (!vp) return;
@@ -549,29 +653,28 @@ export default function DiagramCanvas({
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
       const rect = vp.getBoundingClientRect();
-      const mx = e.clientX - rect.left - RULER_SIZE;
-      const my = e.clientY - rect.top - RULER_SIZE;
-      if (mx < 0 || my < 0) return;
-
-      const oldZoom = zoomRef.current;
+      const focusX = e.clientX - rect.left;
+      const focusY = e.clientY - rect.top;
+      if (focusX < RULER_SIZE || focusY < RULER_SIZE) return;
       const factor = e.deltaY < 0 ? 1.07 : 1 / 1.07;
-      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom * factor));
-
-      const contentX = mx / oldZoom + panStateRef.current.x;
-      const contentY = my / oldZoom + panStateRef.current.y;
-      const newPanX = contentX - mx / newZoom;
-      const newPanY = contentY - my / newZoom;
-
-      setZoom(newZoom);
-      setPanX(newPanX);
-      setPanY(newPanY);
-      zoomRef.current = newZoom;
-      panStateRef.current = { x: newPanX, y: newPanY };
+      applyZoomStep(factor, focusX, focusY);
     };
 
+    const handleMove = (e: PointerEvent) => {
+      const rect = vp.getBoundingClientRect();
+      lastCursorRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    };
+    const handleLeave = () => { lastCursorRef.current = null; };
+
     vp.addEventListener("wheel", handleWheel, { passive: false });
-    return () => vp.removeEventListener("wheel", handleWheel);
-  }, []);
+    vp.addEventListener("pointermove", handleMove);
+    vp.addEventListener("pointerleave", handleLeave);
+    return () => {
+      vp.removeEventListener("wheel", handleWheel);
+      vp.removeEventListener("pointermove", handleMove);
+      vp.removeEventListener("pointerleave", handleLeave);
+    };
+  }, [applyZoomStep]);
 
   // Pan handler
   const handlePanStart = useCallback((e: React.PointerEvent) => {
@@ -746,7 +849,7 @@ export default function DiagramCanvas({
   useEffect(() => {
     if (!runner || !diagram || elementsRef.current.size === 0) return;
     cleanupWiring(wiredRef.current);
-    const wired = wireComponents(runner, diagram, mcuId);
+    const { wired, i2cBus } = wireComponents(runner, diagram, mcuId);
     wiredRef.current = wired;
 
     // Wire custom chips (async — WASM instantiation)
@@ -755,8 +858,21 @@ export default function DiagramCanvas({
       const target = mcus.find((m) => m.id === mcuId) || mcus.find((m) => m.simulatable);
       const pinMapper = target?.pinStyle === "avr-port" ? mapAtmega328Pin : mapArduinoPin;
       import("@/lib/chip-runtime").then(({ wireCustomChipsAsync }) => {
-        wireCustomChipsAsync(runner, diagram, mcuId || target?.id || "uno", pinMapper, wired, chipConfigs);
+        wireCustomChipsAsync(
+          runner,
+          diagram,
+          mcuId || target?.id || "uno",
+          pinMapper,
+          wired,
+          chipConfigs,
+          i2cBus,
+        ).then((runtimes) => {
+          // Expose runtimes to the host so UI controls can setAttr on them.
+          onChipRuntimesReady?.(runtimes);
+        });
       });
+    } else {
+      onChipRuntimesReady?.(new Map());
     }
 
     // Collect sensor parts for SensorPanel
@@ -784,6 +900,14 @@ export default function DiagramCanvas({
         wc.ssd1306.onFrameReady = (imageData) => {
           (el as any).imageData = imageData;
           (el as any).redraw?.();
+        };
+      }
+      if (wc.lcd1602) {
+        // Push initial buffer state
+        (el as any).characters = wc.lcd1602.characters;
+        wc.lcd1602.onCharactersChange = (chars) => {
+          // Clone so lit-element notices the change reference.
+          (el as any).characters = new Uint8Array(chars);
         };
       }
     }
@@ -913,35 +1037,46 @@ export default function DiagramCanvas({
     });
   }
 
-  // Compute visible ruler ticks
-  const GRID_HALF = 1000;
+  // Compute visible ruler ticks — labeled in millimetres, matching Wokwi.
+  // At 96 DPI, 1 mm = 96/25.4 ≈ 3.7795 CSS pixels. Coordinates are stored in
+  // raw pixels, so we convert mm <-> px via this constant.
+  const PX_PER_MM = 96 / 25.4; // ≈ 3.7795
   const vpW = viewportRef.current?.clientWidth ?? 800;
   const vpH = viewportRef.current?.clientHeight ?? 600;
   const innerW = vpW - RULER_SIZE;
   const innerH = vpH - RULER_SIZE;
 
-  const visMinX = Math.max(-GRID_HALF, Math.floor((panX - ORIGIN_PX) / UNIT_PX));
-  const visMaxX = Math.min(GRID_HALF, Math.ceil(((panX + innerW / zoom) - ORIGIN_PX) / UNIT_PX));
-  const visMinY = Math.max(-GRID_HALF, Math.floor((panY - ORIGIN_PX) / UNIT_PX));
-  const visMaxY = Math.min(GRID_HALF, Math.ceil(((panY + innerH / zoom) - ORIGIN_PX) / UNIT_PX));
+  // Visible range in mm, relative to the origin (ORIGIN_PX in raw pixels).
+  const visMinXmm = (panX - ORIGIN_PX) / PX_PER_MM;
+  const visMaxXmm = (panX - ORIGIN_PX + innerW / zoom) / PX_PER_MM;
+  const visMinYmm = (panY - ORIGIN_PX) / PX_PER_MM;
+  const visMaxYmm = (panY - ORIGIN_PX + innerH / zoom) / PX_PER_MM;
 
-  const pixelsPerUnit = UNIT_PX * zoom;
-  const smallTickStep = pixelsPerUnit >= 4 ? 1 : pixelsPerUnit >= 2 ? 5 : 10;
+  // Choose tick density so small ticks are at least 4 px apart on screen.
+  const pxPerMm = PX_PER_MM * zoom;
+  const smallStepMm =
+    pxPerMm >= 4 ? 1 :
+    pxPerMm >= 2 ? 2 :
+    pxPerMm >= 1 ? 5 :
+    10;
+  // Big ticks are labeled; their spacing is 10x the small step, so labels
+  // don't overlap.
+  const bigStepMm = smallStepMm * 10;
 
-  const xTicks: { u: number; big: boolean }[] = [];
-  const startX = Math.floor(visMinX / smallTickStep) * smallTickStep;
-  for (let u = startX; u <= visMaxX; u += smallTickStep) {
-    xTicks.push({ u, big: u % 10 === 0 });
+  const xTicks: { mm: number; big: boolean }[] = [];
+  const startXmm = Math.floor(visMinXmm / smallStepMm) * smallStepMm;
+  for (let mm = startXmm; mm <= visMaxXmm; mm += smallStepMm) {
+    xTicks.push({ mm, big: Math.abs(mm % bigStepMm) < 0.0001 });
   }
 
-  const yTicks: { u: number; big: boolean }[] = [];
-  const startY = Math.floor(visMinY / smallTickStep) * smallTickStep;
-  for (let u = startY; u <= visMaxY; u += smallTickStep) {
-    yTicks.push({ u, big: u % 10 === 0 });
+  const yTicks: { mm: number; big: boolean }[] = [];
+  const startYmm = Math.floor(visMinYmm / smallStepMm) * smallStepMm;
+  for (let mm = startYmm; mm <= visMaxYmm; mm += smallStepMm) {
+    yTicks.push({ mm, big: Math.abs(mm % bigStepMm) < 0.0001 });
   }
 
-  const screenX = (u: number) => ((u * UNIT_PX + ORIGIN_PX) - panX) * zoom;
-  const screenY = (u: number) => ((u * UNIT_PX + ORIGIN_PX) - panY) * zoom;
+  const screenX = (mm: number) => ((mm * PX_PER_MM + ORIGIN_PX) - panX) * zoom;
+  const screenY = (mm: number) => ((mm * PX_PER_MM + ORIGIN_PX) - panY) * zoom;
 
   const cursorStyle = placingPartId
     ? "crosshair"
@@ -970,17 +1105,17 @@ export default function DiagramCanvas({
         background: "#1a1a1a", borderBottom: "1px solid #333", zIndex: 20, overflow: "hidden", pointerEvents: "none",
       }}>
         <svg style={{ position: "absolute", top: 0, left: 0, width: "100%", height: RULER_SIZE }}>
-          {xTicks.map(({ u, big }) => {
-            const sx = screenX(u);
+          {xTicks.map(({ mm, big }) => {
+            const sx = screenX(mm);
             if (sx < -50 || sx > innerW + 50) return null;
             const tickH = big ? 10 : 4;
             return (
-              <g key={u}>
+              <g key={`x${mm}`}>
                 <line x1={sx} y1={RULER_SIZE - tickH} x2={sx} y2={RULER_SIZE}
                   stroke={big ? "#e53935" : "#666"} strokeWidth={big ? 1 : 0.5} />
                 {big && (
                   <text x={sx + 3} y={12} fill="#888" fontSize={9} fontFamily="monospace">
-                    {u / 10}
+                    {Math.round(mm)}
                   </text>
                 )}
               </g>
@@ -995,17 +1130,17 @@ export default function DiagramCanvas({
         background: "#1a1a1a", borderRight: "1px solid #333", zIndex: 20, overflow: "hidden", pointerEvents: "none",
       }}>
         <svg style={{ position: "absolute", top: 0, left: 0, width: RULER_SIZE, height: "100%" }}>
-          {yTicks.map(({ u, big }) => {
-            const sy = screenY(u);
+          {yTicks.map(({ mm, big }) => {
+            const sy = screenY(mm);
             if (sy < -50 || sy > innerH + 50) return null;
             const tickW = big ? 10 : 4;
             return (
-              <g key={u}>
+              <g key={`y${mm}`}>
                 <line x1={RULER_SIZE - tickW} y1={sy} x2={RULER_SIZE} y2={sy}
                   stroke={big ? "#e53935" : "#666"} strokeWidth={big ? 1 : 0.5} />
                 {big && (
                   <text x={2} y={sy - 3} fill="#888" fontSize={9} fontFamily="monospace">
-                    {u / 10}
+                    {Math.round(mm)}
                   </text>
                 )}
               </g>

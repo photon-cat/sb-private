@@ -1,0 +1,15 @@
+name: cd4051-mux-wokwi
+version: 1
+steps:
+  - wait-serial: "READY"
+  - wait-serial: "ch=0 v=100"
+  - wait-serial: "ch=1 v=200"
+  - wait-serial: "ch=2 v=300"
+  - wait-serial: "ch=3 v=400"
+  - wait-serial: "ch=4 v=500"
+  - wait-serial: "ch=5 v=600"
+  - wait-serial: "ch=6 v=700"
+  - wait-serial: "ch=7 v=800"
+  - expect-display:
+      part-id: lcd1
+      text: "CD4051B Mux"

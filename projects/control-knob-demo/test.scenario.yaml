@@ -1,0 +1,7 @@
+name: control-knob-demo
+version: 1
+steps:
+  - wait-serial: "READY"
+  # Default diagram: pot=300 (~1.46V), gain=2 (from diagram.json), offset=0.
+  # Amplifier output = 2 * 1.46 = 2.93V → analog read ≈ 600.
+  - wait-serial: "out=600"

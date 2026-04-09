@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "author": "SparkBench",
+  "editor": "sparkbench",
+  "parts": [
+    { "id": "uno",  "type": "wokwi-arduino-uno",   "top": 0,    "left": 0,   "attrs": {} },
+    { "id": "amp",  "type": "chip-amplifier",      "top": -50,  "left": 260, "attrs": { "gain": "2", "offset": "0" } },
+    { "id": "pot1", "type": "wokwi-potentiometer", "top": -150, "left": 480, "attrs": { "value": "300" } }
+  ],
+  "connections": [
+    [ "uno:5V",    "amp:VCC", "red",    [] ],
+    [ "uno:GND.1", "amp:GND", "black",  [] ],
+    [ "pot1:SIG",  "amp:IN",  "yellow", [] ],
+    [ "amp:OUT",   "uno:A0",  "purple", [] ],
+
+    [ "pot1:VCC", "uno:5V",    "red",   [] ],
+    [ "pot1:GND", "uno:GND.1", "black", [] ]
+  ]
+}

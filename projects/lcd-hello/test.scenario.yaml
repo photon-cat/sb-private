@@ -1,0 +1,11 @@
+name: lcd-hello
+version: 1
+steps:
+  - wait-serial: "READY"
+  - wait-serial: "tick 2"
+  - expect-display:
+      part-id: lcd
+      text: "Hello, World!"
+  - expect-display:
+      part-id: lcd
+      line-0: "Hello, World!"

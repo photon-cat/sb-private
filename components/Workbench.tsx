@@ -25,6 +25,8 @@ interface WorkbenchProps {
   firmwareName?: string | null;
   firmwareHex?: string | null;
   chipConfigs?: Map<string, import("@/lib/chip-runtime").CustomChipConfig> | null;
+  chipRuntimes?: Map<string, import("@/lib/chip-runtime").CustomChipRuntime>;
+  onChipRuntimesReady?: (runtimes: Map<string, import("@/lib/chip-runtime").CustomChipRuntime>) => void;
   onStart: () => void;
   onStop: () => void;
   onPause: () => void;
@@ -97,6 +99,8 @@ export default function Workbench({
   firmwareName,
   firmwareHex,
   chipConfigs,
+  chipRuntimes,
+  onChipRuntimesReady,
   onStart,
   onStop,
   onPause,
@@ -240,6 +244,9 @@ export default function Workbench({
                 firmwareName={firmwareName}
                 firmwareHex={firmwareHex}
                 chipConfigs={chipConfigs}
+                chipRuntimes={chipRuntimes}
+                onChipRuntimesReady={onChipRuntimesReady}
+                projectFiles={projectFiles}
                 onPcbSave={onPcbSave}
                 onStart={onStart}
                 onStop={onStop}

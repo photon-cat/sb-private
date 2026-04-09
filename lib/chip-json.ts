@@ -17,6 +17,62 @@ export interface ChipJsonDef {
     width?: number;
     height?: number;
   };
+  /**
+   * Optional explicit pin positions (in SparkBench px, relative to the
+   * chip's local origin). When present, each pin listed here overrides
+   * the default grid placement computed from the `pins` array, which is
+   * useful when you want the chip to match an external simulator's pin
+   * layout exactly (e.g. Wokwi's chip-cd4051b places its 16 holes in a
+   * vertical column layout that doesn't fit SparkBench's default DIP
+   * horizontal grid).
+   *
+   * Pins not listed here fall back to the default grid position.
+   *
+   * Example:
+   *   "pinPositions": {
+   *     "CIO4": { "x": 4.80, "y": 3.78 },
+   *     "CIO6": { "x": 4.80, "y": 13.38 },
+   *     ...
+   *   }
+   */
+  pinPositions?: Record<string, { x: number; y: number }>;
+  /**
+   * Optional explicit chip body dimensions (in SparkBench px). Used to
+   * compute the rotation center and pinToCanvas transforms. When absent,
+   * the body size is derived from the default pin grid or the
+   * pinPositions extents.
+   *
+   * Usually required alongside `pinPositions` to match an external
+   * simulator exactly — pin extents alone underestimate the PCB body
+   * because Wokwi-style breakouts inset the pin pads from the board
+   * edges, and rotation around the wrong center misplaces the pins
+   * after 180° rotation.
+   */
+  bodySize?: { width: number; height: number };
+  /**
+   * Optional pin-count template. When set, instances of this chip can
+   * override the pin count via `attrs.pins` in diagram.json, and the
+   * chip.json's `pins` array acts as the default at the default count.
+   *
+   * Supported templates:
+   *   "numeric-dip": pins are numbered 1..N in standard DIP order
+   *                  (bottom row L→R, top row R→L). Useful for generic
+   *                  DIP breakouts (8/14/16/20/28/40 pin).
+   *   "alpha-dip":   pins are A1..AN (single-letter column, numeric row)
+   *
+   * Example in chip.json:
+   *   "pinTemplate": "numeric-dip",
+   *   "defaultPinCount": 16
+   *
+   * Example in diagram.json:
+   *   { "type": "chip-dip", "attrs": { "pins": "20" } }
+   *
+   * The DiagramCanvas passes `attrs.pins` through to the custom element,
+   * which re-generates pinInfo per instance.
+   */
+  pinTemplate?: "numeric-dip" | "alpha-dip";
+  /** Default pin count when no `attrs.pins` is set on the instance. */
+  defaultPinCount?: number;
 }
 
 /** Parse a chip.json string into a typed definition */
@@ -34,7 +90,30 @@ export function parseChipJson(jsonStr: string): ChipJsonDef {
     pins: raw.pins.map((p: unknown) => (typeof p === "string" ? p : "")),
     controls: raw.controls,
     display: raw.display,
+    pinPositions: raw.pinPositions,
+    bodySize: raw.bodySize,
+    pinTemplate: raw.pinTemplate,
+    defaultPinCount: raw.defaultPinCount,
   };
+}
+
+/**
+ * Generate pin names for a template + count. Used when diagram.json's
+ * `attrs.pins` overrides the default count from chip.json.
+ */
+export function generatePinNames(template: "numeric-dip" | "alpha-dip", count: number): string[] {
+  if (count < 2) count = 2;
+  if (template === "numeric-dip") {
+    return Array.from({ length: count }, (_, i) => String(i + 1));
+  }
+  if (template === "alpha-dip") {
+    // A1..An/2 on bottom row, then B1..Bn/2 on top
+    const half = Math.ceil(count / 2);
+    const bottom = Array.from({ length: half }, (_, i) => `A${i + 1}`);
+    const top = Array.from({ length: count - half }, (_, i) => `B${i + 1}`);
+    return [...bottom, ...top];
+  }
+  return [];
 }
 
 /** Generate a diagram part type string from a chip name */
@@ -42,14 +121,24 @@ export function chipPartType(chipName: string): string {
   return "chip-" + chipName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
 }
 
+export interface ChipFileSet {
+  chipName: string;
+  source: string;
+  chipJson: ChipJsonDef;
+  partType: string;
+  /** Optional breakout SVG (contents of <name>.chip.svg) — overrides the generic DIP visual. */
+  breakoutSvg?: string;
+}
+
 /**
  * Scan project files for chip definition pairs: <name>.chip.json + <name>.chip.c
+ * and optional <name>.chip.svg for breakout board art.
  * Returns matched chip definitions with their source code.
  */
 export function findChipFiles(
   projectFiles: { name: string; content: string }[],
-): { chipName: string; source: string; chipJson: ChipJsonDef; partType: string }[] {
-  const results: { chipName: string; source: string; chipJson: ChipJsonDef; partType: string }[] = [];
+): ChipFileSet[] {
+  const results: ChipFileSet[] = [];
   const fileMap = new Map(projectFiles.map((f) => [f.name, f.content]));
 
   for (const file of projectFiles) {
@@ -65,6 +154,7 @@ export function findChipFiles(
         source: cFile,
         chipJson,
         partType: chipPartType(baseName),
+        breakoutSvg: fileMap.get(`${baseName}.chip.svg`),
       });
     } catch {
       // Skip malformed chip.json

@@ -123,7 +123,7 @@ console.log("Compilation successful.\n");
 
 // Create AVR runner and wire components
 const runner = new AVRRunner(hex);
-const wired = wireComponents(runner, diagram);
+const { wired } = wireComponents(runner, diagram);
 
 // Capture serial output
 let serialBuffer = "";

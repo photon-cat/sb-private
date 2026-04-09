@@ -37,8 +37,11 @@ function dedup(pts: { x: number; y: number }[]): { x: number; y: number }[] {
 }
 
 /**
- * Build an L-bend from `a` to `b`: horizontal-first to match Wokwi.
- * Returns 0-1 intermediate corner points.
+ * Build an L-bend from `a` to `b`. Returns 0-1 intermediate corner points.
+ *
+ * Uses horizontal-first routing to match `lib/wire-renderer.ts::buildWirePath`
+ * (with no hints) so user-drawn wires and auto-routed wires have the same
+ * shape for any given start/end pair.
  */
 function lBend(
   a: { x: number; y: number },
@@ -48,8 +51,8 @@ function lBend(
   const dy = Math.abs(b.y - a.y);
   if (dx < 0.5 && dy < 0.5) return [];
   if (dx < 0.5 || dy < 0.5) return []; // already axis-aligned
-  // Vertical first (matches Wokwi wire drawing preview)
-  return [{ x: a.x, y: b.y }];
+  // Horizontal first: go to target X on the same row, then drop to target Y.
+  return [{ x: b.x, y: a.y }];
 }
 
 function buildPreviewPath(

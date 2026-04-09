@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "author": "SparkBench",
+  "editor": "sparkbench",
+  "parts": [
+    { "id": "uno",  "type": "wokwi-arduino-uno",  "top": 0,    "left": 0,   "attrs": {} },
+    { "id": "dip8",  "type": "chip-genericdip",   "top": -50,  "left": 220, "attrs": { "pins": "8" } },
+    { "id": "dip16", "type": "chip-genericdip",   "top": -50,  "left": 350, "attrs": { "pins": "16" } },
+    { "id": "dip20", "type": "chip-genericdip",   "top": -50,  "left": 520, "attrs": { "pins": "20" } }
+  ],
+  "connections": []
+}

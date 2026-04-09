@@ -135,6 +135,25 @@ if (command === "test") {
   process.exit(0);
 }
 
+if (command === "run") {
+  // Mirror of `wokwi-cli` main mode: headless simulation + optional screenshot.
+  const subArgs = args.slice(1);
+  if (subArgs.length === 0) {
+    console.error(`${RED}Error: 'run' requires a project slug${RESET}`);
+    console.error(`Usage: sparkbench run <project> [--timeout <ms>] [--screenshot-part <id>] [--screenshot-time <ms>] [--screenshot-file <path>]`);
+    process.exit(2);
+  }
+  try {
+    execFileSync("npx", ["tsx", path.join(__dirname, "sparkbench-run.ts"), ...subArgs], {
+      stdio: "inherit",
+      cwd: ROOT,
+    });
+  } catch (e: any) {
+    process.exit(e.status || 1);
+  }
+  process.exit(0);
+}
+
 if (command === "serve") {
   const subArgs = args.slice(1);
   if (subArgs.length === 0) {

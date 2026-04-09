@@ -7,8 +7,10 @@
 
 import * as yaml from "js-yaml";
 import { AVRRunner } from "./avr-runner";
-import { Diagram, parseDiagram } from "./diagram-parser";
+import { Diagram, parseDiagram, findMCUs } from "./diagram-parser";
 import { wireComponents, cleanupWiring, WiredComponent } from "./wire-components";
+import { wireCustomChipsAsync, type CustomChipConfig } from "./chip-runtime";
+import { mapArduinoPin, mapAtmega328Pin } from "./pin-mapping";
 
 // --- Scenario types ---
 
@@ -36,11 +38,17 @@ interface StepExpectSerial {
 interface StepExpectDisplay {
   "expect-display": {
     "part-id": string;
-    /** Check that at least this many bytes are non-zero in GDDRAM */
+    /** Check that at least this many bytes are non-zero in GDDRAM (SSD1306) */
     "min-filled"?: number;
-    /** Hex pattern to match at a specific byte offset, e.g. "55 aa 55 aa" */
+    /** Hex pattern to match at a specific byte offset (SSD1306), e.g. "55 aa 55 aa" */
     pattern?: string;
     offset?: number;
+    /** Substring to search for across the decoded LCD1602 character buffer */
+    text?: string;
+    /** Exact match for LCD1602 row 0 (16 chars, trailing spaces ignored) */
+    "line-0"?: string;
+    /** Exact match for LCD1602 row 1 */
+    "line-1"?: string;
   };
 }
 
@@ -80,6 +88,9 @@ export function parseScenario(yamlContent: string): Scenario {
 
 /**
  * Run a scenario headlessly against a compiled HEX.
+ *
+ * Synchronous variant — does not support custom chips. For chip support,
+ * use {@link runScenarioAsync}.
  */
 export function runScenario(
   hex: string,
@@ -87,7 +98,7 @@ export function runScenario(
   scenario: Scenario,
 ): ScenarioResult {
   const runner = new AVRRunner(hex);
-  const wired = wireComponents(runner, diagram);
+  const { wired } = wireComponents(runner, diagram);
 
   let serialOutput = "";
   runner.usart.onByteTransmit = (byte: number) => {
@@ -122,6 +133,84 @@ export function runScenario(
     serialOutput = serialOutput; // (already accumulated)
   }
 
+  cleanupWiring(wired);
+  runner.stop();
+
+  return {
+    name: scenario.name,
+    passed: allPassed,
+    steps: results,
+    serialOutput,
+  };
+}
+
+/**
+ * Run a scenario headlessly with custom chip support.
+ * Custom chip WASM instantiation is async, so this variant must be awaited.
+ */
+export async function runScenarioAsync(
+  hex: string,
+  diagram: Diagram,
+  scenario: Scenario,
+  chipConfigs?: Map<string, CustomChipConfig>,
+): Promise<ScenarioResult> {
+  const runner = new AVRRunner(hex);
+  const { wired, i2cBus } = wireComponents(runner, diagram);
+
+  let serialOutput = "";
+  runner.usart.onByteTransmit = (byte: number) => {
+    serialOutput += String.fromCharCode(byte);
+  };
+
+  // Wire custom chips (if any)
+  let chipRuntimes: Map<string, import("./chip-runtime").CustomChipRuntime> = new Map();
+  if (chipConfigs && chipConfigs.size > 0) {
+    const mcus = findMCUs(diagram);
+    const target = mcus.find((m) => m.simulatable);
+    if (target) {
+      const pinMapper = target.boardId === "atmega328p" ? mapAtmega328Pin : mapArduinoPin;
+      chipRuntimes = await wireCustomChipsAsync(
+        runner,
+        diagram,
+        target.id,
+        pinMapper,
+        wired,
+        chipConfigs,
+        i2cBus,
+      );
+      // Forward chip console output into the serial stream so tests can see it
+      for (const rt of chipRuntimes.values()) {
+        rt.setConsoleCallback((text) => {
+          serialOutput += `[chip] ${text}`;
+        });
+      }
+    }
+  }
+
+  const results: StepResult[] = [];
+  let allPassed = true;
+
+  // Boot cycles
+  runner.runMs(10);
+
+  for (let i = 0; i < scenario.steps.length; i++) {
+    const step = scenario.steps[i];
+
+    if ("clear-serial" in step) {
+      serialOutput = "";
+      results.push({ step: i, description: "clear-serial", passed: true });
+      continue;
+    }
+
+    const result = executeStep(runner, wired, step, i, () => serialOutput);
+    results.push(result);
+    if (!result.passed) {
+      allPassed = false;
+      break;
+    }
+  }
+
+  for (const rt of chipRuntimes.values()) rt.dispose();
   cleanupWiring(wired);
   runner.stop();
 
@@ -259,7 +348,15 @@ function executeStep(
   }
 
   if ("expect-display" in step) {
-    const { "part-id": partId, "min-filled": minFilled, pattern, offset } = step["expect-display"];
+    const {
+      "part-id": partId,
+      "min-filled": minFilled,
+      pattern,
+      offset,
+      text,
+      "line-0": line0,
+      "line-1": line1,
+    } = step["expect-display"];
     const wc = wired.get(partId);
     if (!wc) {
       return {
@@ -270,12 +367,50 @@ function executeStep(
       };
     }
 
+    // --- LCD1602 path (text-based assertions) ---
+    if (wc.lcd1602) {
+      const [row0, row1] = wc.lcd1602.toText();
+      const stripped0 = row0.replace(/\s+$/, "");
+      const stripped1 = row1.replace(/\s+$/, "");
+      const fullText = `${row0}\n${row1}`;
+
+      if (text !== undefined && !fullText.includes(text)) {
+        return {
+          step: index,
+          description: `expect-display ${partId} text="${text}"`,
+          passed: false,
+          error: `LCD does not contain "${text}". Got:\n[${row0}]\n[${row1}]`,
+        };
+      }
+      if (line0 !== undefined && stripped0 !== line0.replace(/\s+$/, "")) {
+        return {
+          step: index,
+          description: `expect-display ${partId} line-0`,
+          passed: false,
+          error: `LCD row 0 mismatch. Expected "${line0}", got "${row0}"`,
+        };
+      }
+      if (line1 !== undefined && stripped1 !== line1.replace(/\s+$/, "")) {
+        return {
+          step: index,
+          description: `expect-display ${partId} line-1`,
+          passed: false,
+          error: `LCD row 1 mismatch. Expected "${line1}", got "${row1}"`,
+        };
+      }
+      return {
+        step: index,
+        description: `expect-display ${partId} LCD ok`,
+        passed: true,
+      };
+    }
+
     if (!wc.ssd1306) {
       return {
         step: index,
         description: `expect-display ${partId}`,
         passed: false,
-        error: `Part "${partId}" is not an SSD1306 display`,
+        error: `Part "${partId}" is not an SSD1306 or LCD1602 display`,
       };
     }
 

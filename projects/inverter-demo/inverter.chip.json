@@ -1,0 +1,5 @@
+{
+  "name": "Inverter",
+  "author": "SparkBench",
+  "pins": ["IN", "OUT", "VCC", "GND"]
+}

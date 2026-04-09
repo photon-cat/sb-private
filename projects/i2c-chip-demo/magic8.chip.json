@@ -1,0 +1,5 @@
+{
+  "name": "magic8",
+  "author": "SparkBench",
+  "pins": ["GND", "VCC", "SDA", "SCL"]
+}

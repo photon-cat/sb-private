@@ -1,0 +1,94 @@
+<!--
+  CD4051B breakout PCB art for SparkBench.
+
+  Dimensions are direct copies of Wokwi's own chip-cd4051b SVG, extracted
+  via scripts/dump-wokwi-chip.ts from project 343522915673702994 on
+  2026-04-07. Wokwi's SVG uses a 30mm × 22.32mm viewBox with #087f45 as
+  the PCB fill; this file translates those mm units into SparkBench's
+  pixel coordinate system (3.78 px / mm, the CSS default at 96 DPI).
+
+  Wokwi authoritative source:
+    <rect fill="#087f45" width="30" height="22.32" rx="1"/>
+    holes at x=1.27mm, 28.73mm; y={1, 3.54, 6.08, 8.62, 11.16, 13.7, 16.24, 18.78}mm
+    hole = <circle r=0.7 cx=0 cy=1.27 fill="#ffe680"/> + inner r=0.45 fill="#fff"
+    text "CD4051B" / "Breakout" centered, font-size=3, fill=white
+
+  SparkBench-specific notes:
+    * SparkBench's CustomChipElement places pin hit-targets on TOP and
+      BOTTOM rows (horizontal DIP orientation). Wokwi's native rendering
+      places them on LEFT and RIGHT (vertical DIP). We keep SparkBench's
+      horizontal convention so the existing pin grid and wire router work
+      unchanged — the PCB artwork is rotated 90° relative to Wokwi's
+      native orientation, but the body dimensions and visual style match
+      exactly.
+    * The chip grid in SparkBench is 9.6 px per UNIT. For a 16-pin DIP
+      (pinsPerSide=8), the pin positions are on y=0 (top row) and y=28.8
+      (bottom row) at x=0, 9.6, 19.2, ..., 67.2.
+-->
+<svg xmlns="http://www.w3.org/2000/svg">
+  <!--
+    PCB body: 30mm × 22.32mm → 113.4 × 84.4 px.
+    Centered so the pin grid (67.2 × 28.8 px) sits in the middle.
+    Horizontal center: (113.4 - 67.2) / 2 = 23.1 px padding left
+    Vertical center:   (84.4 - 28.8) / 2 = 27.8 px padding top
+    Body origin: (-23.1, -27.8), extent (113.4, 84.4)
+  -->
+  <rect x="-23.1" y="-27.8" width="113.4" height="84.4" rx="3.78" ry="3.78"
+        fill="#087f45"/>
+
+  <!--
+    Pin-hole pads. Wokwi's hole style is a 0.7mm gold ring + 0.45mm white
+    center. Scaled to px: gold r=2.65, white r=1.70.
+    Placed at SparkBench pin grid positions so wire endpoints still land.
+  -->
+  <g>
+    <!-- Bottom row: pins 1..8 (CIO4, CIO6, COMIO, CIO7, CIO5, INH, VEE, VSS) -->
+    <circle cx="0"    cy="28.8" r="2.65" fill="#ffe680"/>
+    <circle cx="0"    cy="28.8" r="1.70" fill="#ffffff"/>
+    <circle cx="9.6"  cy="28.8" r="2.65" fill="#ffe680"/>
+    <circle cx="9.6"  cy="28.8" r="1.70" fill="#ffffff"/>
+    <circle cx="19.2" cy="28.8" r="2.65" fill="#ffe680"/>
+    <circle cx="19.2" cy="28.8" r="1.70" fill="#ffffff"/>
+    <circle cx="28.8" cy="28.8" r="2.65" fill="#ffe680"/>
+    <circle cx="28.8" cy="28.8" r="1.70" fill="#ffffff"/>
+    <circle cx="38.4" cy="28.8" r="2.65" fill="#ffe680"/>
+    <circle cx="38.4" cy="28.8" r="1.70" fill="#ffffff"/>
+    <circle cx="48.0" cy="28.8" r="2.65" fill="#ffe680"/>
+    <circle cx="48.0" cy="28.8" r="1.70" fill="#ffffff"/>
+    <circle cx="57.6" cy="28.8" r="2.65" fill="#ffe680"/>
+    <circle cx="57.6" cy="28.8" r="1.70" fill="#ffffff"/>
+    <circle cx="67.2" cy="28.8" r="2.65" fill="#ffe680"/>
+    <circle cx="67.2" cy="28.8" r="1.70" fill="#ffffff"/>
+
+    <!-- Top row: pins 9..16 in array order R→L (C, B, A, CIO3, CIO0, CIO1, CIO2, VDD) -->
+    <circle cx="0"    cy="0" r="2.65" fill="#ffe680"/>
+    <circle cx="0"    cy="0" r="1.70" fill="#ffffff"/>
+    <circle cx="9.6"  cy="0" r="2.65" fill="#ffe680"/>
+    <circle cx="9.6"  cy="0" r="1.70" fill="#ffffff"/>
+    <circle cx="19.2" cy="0" r="2.65" fill="#ffe680"/>
+    <circle cx="19.2" cy="0" r="1.70" fill="#ffffff"/>
+    <circle cx="28.8" cy="0" r="2.65" fill="#ffe680"/>
+    <circle cx="28.8" cy="0" r="1.70" fill="#ffffff"/>
+    <circle cx="38.4" cy="0" r="2.65" fill="#ffe680"/>
+    <circle cx="38.4" cy="0" r="1.70" fill="#ffffff"/>
+    <circle cx="48.0" cy="0" r="2.65" fill="#ffe680"/>
+    <circle cx="48.0" cy="0" r="1.70" fill="#ffffff"/>
+    <circle cx="57.6" cy="0" r="2.65" fill="#ffe680"/>
+    <circle cx="57.6" cy="0" r="1.70" fill="#ffffff"/>
+    <circle cx="67.2" cy="0" r="2.65" fill="#ffe680"/>
+    <circle cx="67.2" cy="0" r="1.70" fill="#ffffff"/>
+  </g>
+
+  <!--
+    Chip text — centered in the middle of the PCB body.
+    Wokwi uses font-size=3mm (=11.34px) and "white" fill.
+    Marked data-role="label" so CustomChipElement's counter-rotate logic
+    keeps "CD4051B" upright when the chip is placed at rotate:180.
+  -->
+  <text data-role="label" x="33.6" y="10.2" text-anchor="middle"
+        dominant-baseline="middle" fill="#ffffff" font-size="8"
+        font-family="-apple-system, sans-serif" font-weight="700">CD4051B</text>
+  <text x="33.6" y="18.5" text-anchor="middle" dominant-baseline="middle"
+        fill="#ffffff" font-size="5.5"
+        font-family="-apple-system, sans-serif" font-weight="500">Breakout</text>
+</svg>

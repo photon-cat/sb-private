@@ -1,0 +1,9 @@
+name: i2c-chip-demo
+version: 1
+steps:
+  - wait-serial: "READY"
+  - wait-serial: "magic=0x42"
+  - wait-serial: "counter1=0"
+  - wait-serial: "counter2=1"
+  - wait-serial: "echoBefore=0xA5"
+  - wait-serial: "echoAfter=0x5A"

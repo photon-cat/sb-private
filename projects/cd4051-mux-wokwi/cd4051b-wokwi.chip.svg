@@ -1,0 +1,87 @@
+<!--
+  CD4051B breakout PCB art — DIRECT COPY of Wokwi's chip-cd4051b SVG,
+  rescaled from mm to SparkBench px (3.78 px / mm at 96 DPI).
+
+  Authoritative source (extracted 2026-04-07 via scripts/dump-wokwi-chip.ts
+  from https://wokwi.com/projects/343522915673702994 element "ic1"):
+
+    <svg width="30mm" height="22.32mm" viewBox="0 0 30 22.32">
+      <rect fill="#087f45" width="30" height="22.32" rx="1"/>
+      <!-- 8 left holes at x=1.27mm, y={1,3.54,6.08,8.62,11.16,13.7,16.24,18.78} -->
+      <!-- 8 right holes at x=28.73mm, same y values -->
+      <text y="11.16" font-size="3" text-anchor="middle" fill="white">
+        <tspan x="15">CD4051B</tspan>
+        <tspan x="15" dy="4">Breakout</tspan>
+      </text>
+    </svg>
+
+  Every hole has <circle r=0.7 cx=0 cy=1.27 fill="#ffe680"/> (outer gold ring)
+  + <circle r=0.45 cx=0 cy=1.27 fill="#fff"/> (inner white pad).
+
+  Scaled to SparkBench px (1 mm = 3.78 px):
+    body:   113.4 x 84.4 px, corner radius 3.78 px
+    holes:  x in {4.80, 108.60}, y in {3.78, 13.38, 22.98, 32.58, 42.18, 51.79, 61.39, 70.99}
+            gold ring r=2.65, white pad r=1.70
+    text:   "CD4051B" at (56.7, 42.18) size 11.34 white; "Breakout" below
+
+  Pin hit-targets are declared in cd4051b-wokwi.chip.json under pinPositions
+  so wire endpoints land exactly on these same hole positions. This is the
+  "Wokwi-equivalent" variant — use `chip-cd4051b` (horizontal DIP) for the
+  SparkBench-native variant.
+-->
+<svg xmlns="http://www.w3.org/2000/svg">
+  <!-- PCB body: 30mm × 22.32mm = 113.4 × 84.4 px, fill #087f45 -->
+  <rect x="0" y="0" width="113.4" height="84.4" rx="3.78" ry="3.78" fill="#087f45"/>
+
+  <!-- Left column holes (pins 1-8: CIO4, CIO6, COMIO, CIO7, CIO5, INH, VEE, VSS) -->
+  <g>
+    <circle cx="4.80" cy="3.78"  r="2.65" fill="#ffe680"/>
+    <circle cx="4.80" cy="3.78"  r="1.70" fill="#ffffff"/>
+    <circle cx="4.80" cy="13.38" r="2.65" fill="#ffe680"/>
+    <circle cx="4.80" cy="13.38" r="1.70" fill="#ffffff"/>
+    <circle cx="4.80" cy="22.98" r="2.65" fill="#ffe680"/>
+    <circle cx="4.80" cy="22.98" r="1.70" fill="#ffffff"/>
+    <circle cx="4.80" cy="32.58" r="2.65" fill="#ffe680"/>
+    <circle cx="4.80" cy="32.58" r="1.70" fill="#ffffff"/>
+    <circle cx="4.80" cy="42.18" r="2.65" fill="#ffe680"/>
+    <circle cx="4.80" cy="42.18" r="1.70" fill="#ffffff"/>
+    <circle cx="4.80" cy="51.79" r="2.65" fill="#ffe680"/>
+    <circle cx="4.80" cy="51.79" r="1.70" fill="#ffffff"/>
+    <circle cx="4.80" cy="61.39" r="2.65" fill="#ffe680"/>
+    <circle cx="4.80" cy="61.39" r="1.70" fill="#ffffff"/>
+    <circle cx="4.80" cy="70.99" r="2.65" fill="#ffe680"/>
+    <circle cx="4.80" cy="70.99" r="1.70" fill="#ffffff"/>
+  </g>
+
+  <!-- Right column holes (pins 16-9 top→bottom: VDD, CIO2, CIO1, CIO0, CIO3, A, B, C) -->
+  <g>
+    <circle cx="108.60" cy="3.78"  r="2.65" fill="#ffe680"/>
+    <circle cx="108.60" cy="3.78"  r="1.70" fill="#ffffff"/>
+    <circle cx="108.60" cy="13.38" r="2.65" fill="#ffe680"/>
+    <circle cx="108.60" cy="13.38" r="1.70" fill="#ffffff"/>
+    <circle cx="108.60" cy="22.98" r="2.65" fill="#ffe680"/>
+    <circle cx="108.60" cy="22.98" r="1.70" fill="#ffffff"/>
+    <circle cx="108.60" cy="32.58" r="2.65" fill="#ffe680"/>
+    <circle cx="108.60" cy="32.58" r="1.70" fill="#ffffff"/>
+    <circle cx="108.60" cy="42.18" r="2.65" fill="#ffe680"/>
+    <circle cx="108.60" cy="42.18" r="1.70" fill="#ffffff"/>
+    <circle cx="108.60" cy="51.79" r="2.65" fill="#ffe680"/>
+    <circle cx="108.60" cy="51.79" r="1.70" fill="#ffffff"/>
+    <circle cx="108.60" cy="61.39" r="2.65" fill="#ffe680"/>
+    <circle cx="108.60" cy="61.39" r="1.70" fill="#ffffff"/>
+    <circle cx="108.60" cy="70.99" r="2.65" fill="#ffe680"/>
+    <circle cx="108.60" cy="70.99" r="1.70" fill="#ffffff"/>
+  </g>
+
+  <!--
+    "CD4051B" / "Breakout" label, centered on the PCB.
+    Wokwi uses font-size=3mm ≈ 11.34 px, fill=white, centered at x=15mm (=56.7 px).
+    y=11.16mm (=42.18 px) is the vertical center of the 22.32 mm body.
+  -->
+  <text data-role="label" x="56.7" y="42.18" text-anchor="middle"
+        dominant-baseline="middle" fill="#ffffff" font-size="11.34"
+        font-family="-apple-system, sans-serif" font-weight="700">CD4051B</text>
+  <text x="56.7" y="57.3" text-anchor="middle" dominant-baseline="middle"
+        fill="#ffffff" font-size="11.34"
+        font-family="-apple-system, sans-serif" font-weight="500">Breakout</text>
+</svg>

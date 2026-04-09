@@ -2,11 +2,16 @@
 import { useState } from "react";
 import type { DiagramPart } from "@/lib/diagram-parser";
 import type { WiredComponent } from "@/lib/wire-components";
+import type { CustomChipConfig, CustomChipRuntime } from "@/lib/chip-runtime";
 import { FOOTPRINT_OPTIONS, FOOTPRINT_LIBRARY } from "@/lib/pcb-footprints";
 
 interface PartAttributePanelProps {
   part: DiagramPart | null;
   wiredComponent?: WiredComponent | null;
+  /** Available custom chip configs, keyed by part.id */
+  chipConfigs?: Map<string, CustomChipConfig>;
+  /** Live custom chip runtime instances, keyed by part.id */
+  chipRuntimes?: Map<string, CustomChipRuntime>;
   onAttrChange: (attr: string, value: string) => void;
   onRotate: (angle: number) => void;
   onDelete: () => void;
@@ -173,6 +178,64 @@ function BMP180Controls({ wc }: { wc: WiredComponent }) {
   );
 }
 
+/**
+ * Renders runtime sliders for a custom chip's `controls` from chip.json.
+ * Values are applied live via `CustomChipRuntime.setAttr` and also persisted
+ * into `part.attrs` (same pattern as potentiometer values) so they survive
+ * across sim restarts and diagram saves.
+ */
+function ChipControls({
+  part,
+  config,
+  runtime,
+  onAttrChange,
+}: {
+  part: DiagramPart;
+  config: CustomChipConfig;
+  runtime?: CustomChipRuntime;
+  onAttrChange: (attr: string, value: string) => void;
+}) {
+  // Derive initial values from part.attrs (persisted) or the runtime, or control defaults.
+  const initial: Record<string, number> = {};
+  for (const ctl of config.chipJson.controls ?? []) {
+    const stored = part.attrs[ctl.id];
+    if (stored !== undefined) {
+      initial[ctl.id] = parseFloat(stored);
+    } else {
+      initial[ctl.id] = runtime?.getAttr(ctl.id) ?? (ctl.min + ctl.max) / 2;
+    }
+  }
+  const [values, setValues] = useState<Record<string, number>>(initial);
+
+  if (!config.chipJson.controls || config.chipJson.controls.length === 0) {
+    return null;
+  }
+
+  return (
+    <div style={{ marginTop: 8, borderTop: "1px solid #333", paddingTop: 8 }}>
+      <div style={{ fontSize: 10, color: "#888", marginBottom: 4, fontWeight: 600 }}>
+        Chip Controls
+      </div>
+      {config.chipJson.controls.map((ctl) => (
+        <SensorSlider
+          key={ctl.id}
+          label={ctl.label || ctl.id}
+          value={values[ctl.id] ?? 0}
+          min={ctl.min}
+          max={ctl.max}
+          step={ctl.step}
+          unit=""
+          onChange={(v) => {
+            setValues((prev) => ({ ...prev, [ctl.id]: v }));
+            runtime?.setAttr(ctl.id, v);
+            onAttrChange(ctl.id, String(v));
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function MPU6050Controls({ wc }: { wc: WiredComponent }) {
   const [ax, setAx] = useState(0);
   const [ay, setAy] = useState(0);
@@ -204,6 +267,8 @@ function MPU6050Controls({ wc }: { wc: WiredComponent }) {
 export default function PartAttributePanel({
   part,
   wiredComponent,
+  chipConfigs,
+  chipRuntimes,
   onAttrChange,
   onRotate,
   onDelete,
@@ -339,6 +404,14 @@ export default function PartAttributePanel({
       )}
       {wiredComponent && part.type === "wokwi-bmp180" && (
         <BMP180Controls wc={wiredComponent} />
+      )}
+      {part.type.startsWith("chip-") && chipConfigs?.get(part.id) && (
+        <ChipControls
+          part={part}
+          config={chipConfigs.get(part.id)!}
+          runtime={chipRuntimes?.get(part.id)}
+          onAttrChange={onAttrChange}
+        />
       )}
 
       <div style={{ display: "flex", gap: 6, marginTop: 4 }}>

@@ -16,6 +16,7 @@ import { DHT22Simulator } from "./dht22-sim";
 import { MPU6050Controller } from "./mpu6050-sim";
 import { BMP180Controller } from "./bmp180-sim";
 import { EncoderSimulator } from "./encoder-sim";
+import { LCD1602Controller } from "./lcd1602-controller";
 
 export interface WiredComponent {
   part: DiagramPart;
@@ -51,6 +52,8 @@ export interface WiredComponent {
   releaseEncoderButton?: () => void;
   /** SSD1306 controller — set onFrameReady to receive display updates */
   ssd1306?: SSD1306Controller;
+  /** LCD1602/LCD2004 controller — set onCharactersChange to receive buffer updates */
+  lcd1602?: LCD1602Controller;
   /** Cleanup listener */
   cleanup?: () => void;
 }
@@ -82,16 +85,22 @@ function findPartConnections(
   return map;
 }
 
+export interface WireResult {
+  wired: Map<string, WiredComponent>;
+  /** Shared I2C bus attached to runner.twi. Custom chips may register devices on it at runtime. */
+  i2cBus: I2CBus;
+}
+
 /**
  * Wire diagram components to avr8js GPIO.
  * @param mcuId - Override which MCU part to wire to. If omitted, uses the first simulatable MCU in parts order (Wokwi convention).
- * Returns a map of componentId -> WiredComponent for the caller to bind UI callbacks.
+ * Returns the WiredComponent map plus the shared I2C bus.
  */
 export function wireComponents(
   runner: AVRRunnerLike,
   diagram: Diagram,
   mcuId?: string
-): Map<string, WiredComponent> {
+): WireResult {
   // Auto-detect MCU if not specified: first simulatable MCU in parts order
   let resolvedMcuId = mcuId;
   let pinMapper: (name: string) => PinInfo | null = mapArduinoPin;
@@ -184,14 +193,15 @@ export function wireComponents(
   }
 
   // --- I2C components ---
+  // Always create and install the bus so custom chips can register devices
+  // on it later (after wireComponents returns). The bus is a no-op when empty.
   const i2cBus = new I2CBus(runner.twi);
-  let hasI2C = false;
+  runner.twi.eventHandler = i2cBus;
 
   for (const part of diagram.parts) {
     if (part.type === "wokwi-ssd1306") {
       const controller = new SSD1306Controller(runner.twi);
       i2cBus.addDevice(0x3c, controller);
-      hasI2C = true;
       wired.set(part.id, {
         part,
         ssd1306: controller,
@@ -204,7 +214,6 @@ export function wireComponents(
     if (part.type === "wokwi-mpu6050") {
       const controller = new MPU6050Controller(runner.twi);
       i2cBus.addDevice(0x68, controller);
-      hasI2C = true;
       wired.set(part.id, {
         part,
         setAccel: (x, y, z) => controller.setAccel(x, y, z),
@@ -215,11 +224,24 @@ export function wireComponents(
   }
 
   for (const part of diagram.parts) {
+    if (part.type === "wokwi-lcd1602" || part.type === "wokwi-lcd2004") {
+      // Default PCF8574 backpack address is 0x27; some boards use 0x3F.
+      const addr = parseInt(part.attrs.address || "0x27", 16);
+      const controller = new LCD1602Controller(runner.twi, addr);
+      i2cBus.addDevice(addr, controller);
+      wired.set(part.id, {
+        part,
+        lcd1602: controller,
+        cleanup: () => controller.dispose(),
+      });
+    }
+  }
+
+  for (const part of diagram.parts) {
     if (part.type === "wokwi-bmp180") {
       const addr = parseInt(part.attrs.address || "0x77", 16);
       const controller = new BMP180Controller(runner.twi, addr);
       i2cBus.addDevice(addr, controller);
-      hasI2C = true;
       const initTemp = parseFloat(part.attrs.temperature || "24");
       const initPressure = parseFloat(part.attrs.pressure || "101325");
       controller.setTemperature(initTemp);
@@ -233,10 +255,6 @@ export function wireComponents(
     }
   }
 
-  if (hasI2C) {
-    runner.twi.eventHandler = i2cBus;
-  }
-
   // --- 74HC165 shift registers ---
   wireHC165(runner, diagram, resolvedMcuId!, pinMapper, wired);
 
@@ -246,7 +264,7 @@ export function wireComponents(
   // --- Rotary encoders ---
   wireEncoders(runner, diagram, resolvedMcuId!, pinMapper, wired);
 
-  return wired;
+  return { wired, i2cBus };
 }
 
 /**

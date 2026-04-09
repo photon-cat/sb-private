@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "author": "Chris Schmidt",
+  "editor": "sparkbench",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": -228.56, "left": -160.4, "rotate": 270, "attrs": {} },
+    { "type": "chip-cd4051b",      "id": "ic1", "top": -363.42, "left": -69.8, "rotate": 180, "attrs": {} },
+
+    { "type": "wokwi-potentiometer", "id": "pot1", "top": -452.5, "left": -317,   "attrs": { "value": "100" } },
+    { "type": "wokwi-potentiometer", "id": "pot2", "top": -452.5, "left": -240.2, "attrs": { "value": "200" } },
+    { "type": "wokwi-potentiometer", "id": "pot3", "top": -452.5, "left": -163.4, "attrs": { "value": "300" } },
+    { "type": "wokwi-potentiometer", "id": "pot4", "top": -452.5, "left": -86.6,  "attrs": { "value": "400" } },
+    { "type": "wokwi-potentiometer", "id": "pot5", "top": -452.5, "left": -9.8,   "attrs": { "value": "500" } },
+    { "type": "wokwi-potentiometer", "id": "pot6", "top": -452.5, "left": 67,     "attrs": { "value": "600" } },
+    { "type": "wokwi-potentiometer", "id": "pot7", "top": -452.5, "left": 143.8,  "attrs": { "value": "700" } },
+    { "type": "wokwi-potentiometer", "id": "pot8", "top": -452.5, "left": 220.6,  "attrs": { "value": "800" } },
+
+    { "type": "wokwi-lcd1602",     "id": "lcd1", "top": -140.34, "left": 109.18, "attrs": { "pins": "i2c" } },
+    { "type": "wokwi-dip-switch-8","id": "sw1",  "top": -93.4,   "left": -257.1, "attrs": {} },
+
+    { "type": "wokwi-resistor", "id": "r1", "top": -172.2, "left": -192, "attrs": { "value": "1000" } },
+    { "type": "wokwi-resistor", "id": "r2", "top": -162.6, "left": -192, "attrs": { "value": "1000" } },
+    { "type": "wokwi-resistor", "id": "r3", "top": -153,   "left": -192, "attrs": { "value": "1000" } },
+    { "type": "wokwi-resistor", "id": "r4", "top": -143.4, "left": -192, "attrs": { "value": "1000" } }
+  ],
+  "connections": [
+    [ "pot1:GND", "pot2:GND", "black", ["v0"] ],
+    [ "pot2:GND", "pot3:GND", "black", ["v0"] ],
+    [ "pot3:GND", "pot4:GND", "black", ["v0"] ],
+    [ "pot4:GND", "pot5:GND", "black", ["v0"] ],
+    [ "pot5:GND", "pot6:GND", "black", ["v0"] ],
+    [ "pot6:GND", "pot7:GND", "black", ["v0"] ],
+    [ "pot7:GND", "pot8:GND", "black", ["v0"] ],
+
+    [ "pot1:VCC", "pot2:VCC", "red", ["v0"] ],
+    [ "pot2:VCC", "pot3:VCC", "red", ["v0"] ],
+    [ "pot3:VCC", "pot4:VCC", "red", ["v0"] ],
+    [ "pot4:VCC", "pot5:VCC", "red", ["v0"] ],
+    [ "pot5:VCC", "pot6:VCC", "red", ["v0"] ],
+    [ "pot6:VCC", "pot7:VCC", "red", ["v0"] ],
+    [ "pot7:VCC", "pot8:VCC", "red", ["v0"] ],
+
+    [ "pot1:SIG", "ic1:CIO0", "gold", ["v67.2", "h214.61"] ],
+    [ "pot2:SIG", "ic1:CIO1", "gold", ["v76.8", "h137.81"] ],
+    [ "pot3:SIG", "ic1:CIO2", "gold", ["v86.4", "h61.01"] ],
+    [ "pot4:SIG", "ic1:CIO3", "gold", ["v19.2", "h-27.2", "v38.4"] ],
+    [ "pot5:SIG", "ic1:CIO4", "gold", ["v14.75", "h20.8", "v81.25"] ],
+    [ "pot6:SIG", "ic1:CIO5", "gold", ["v57.6", "h-65.6"] ],
+    [ "pot7:SIG", "ic1:CIO6", "gold", ["v86.4", "h-142.4"] ],
+    [ "pot8:SIG", "ic1:CIO7", "gold", ["v67.2", "h-219.2"] ],
+
+    [ "pot1:VCC", "ic1:VDD", "red",   ["v0"] ],
+    [ "pot8:GND", "ic1:VSS", "black", ["v0"] ],
+    [ "uno:GND.3", "ic1:VSS", "black", ["h54", "v-186.9"] ],
+    [ "uno:5V",    "ic1:VDD", "red",   ["h15.6", "v-119.5", "h-161.39"] ],
+    [ "uno:GND.1", "ic1:INH", "black", ["h0"] ],
+
+    [ "ic1:COMIO", "uno:A0", "gray",   ["h67.2", "v109.9"] ],
+    [ "uno:6",     "ic1:C",  "violet", ["h-70.7", "v-167.4"] ],
+    [ "ic1:B",     "uno:5",  "violet", ["h-97.81", "v144"] ],
+    [ "ic1:A",     "uno:4",  "violet", ["h-88.21", "v124.8"] ],
+
+    [ "lcd1:GND", "uno:GND.3", "black", ["h-17.18", "v-58.72"] ],
+    [ "lcd1:VCC", "uno:5V",    "red",   ["h-26.78", "v-49.22"] ],
+    [ "lcd1:SDA", "uno:A4.2",  "green", ["h-17.18", "v127.74", "h-230.4", "v-123.46"] ],
+    [ "lcd1:SCL", "uno:A5.2",  "green", ["h-7.58",  "v127.84", "h-249.6", "v-123.06"] ],
+
+    [ "uno:5V", "sw1:1a", "red", ["h21.8", "v176.86", "h-336"] ],
+    [ "uno:5V", "sw1:2a", "red", ["h21.8", "v176.86", "h-326.4"] ],
+    [ "uno:5V", "sw1:3a", "red", ["h21.8", "v176.86", "h-316.8"] ],
+    [ "uno:5V", "sw1:4a", "red", ["h21.8", "v176.86", "h-307.2"] ],
+
+    [ "r1:2", "uno:8",  "green", ["v0"] ],
+    [ "r2:2", "uno:9",  "green", ["v0"] ],
+    [ "r3:2", "uno:10", "green", ["v0"] ],
+    [ "r4:2", "uno:11", "green", ["v0"] ],
+
+    [ "r1:1", "sw1:1b", "green", ["v0", "h-57.6"] ],
+    [ "r2:1", "sw1:2b", "green", ["v0", "h-48"] ],
+    [ "r3:1", "sw1:3b", "green", ["v0", "h-38.4"] ],
+    [ "r4:1", "sw1:4b", "green", ["h-28.8", "v41.8"] ]
+  ]
+}

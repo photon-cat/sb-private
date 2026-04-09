@@ -49,6 +49,9 @@ interface SimulationPanelProps {
   firmwareName?: string | null;
   firmwareHex?: string | null;
   chipConfigs?: Map<string, import("@/lib/chip-runtime").CustomChipConfig> | null;
+  chipRuntimes?: Map<string, import("@/lib/chip-runtime").CustomChipRuntime>;
+  onChipRuntimesReady?: (runtimes: Map<string, import("@/lib/chip-runtime").CustomChipRuntime>) => void;
+  projectFiles?: { name: string; content: string }[];
   onPcbSave: (text: string) => void;
   onStart: () => void;
   onStop: () => void;
@@ -99,6 +102,9 @@ export default function SimulationPanel({
   firmwareName,
   firmwareHex,
   chipConfigs,
+  chipRuntimes,
+  onChipRuntimesReady,
+  projectFiles,
   onPcbSave,
   onStart,
   onStop,
@@ -270,6 +276,8 @@ export default function SimulationPanel({
                   showGrid={showGrid}
                   mcuId={mcuId}
                   chipConfigs={chipConfigs}
+                  projectFiles={projectFiles}
+                  onChipRuntimesReady={onChipRuntimesReady}
                   simRunning={status === "running" || status === "paused"}
                   onWiredComponentsChange={setWiredComponents}
                 />
@@ -373,11 +381,19 @@ export default function SimulationPanel({
                   "wokwi-hx711", "wokwi-ntc-temperature-sensor",
                   "wokwi-pir-motion-sensor", "wokwi-clock-generator",
                 ]);
-                const showPanel = !simRunning || (part && RUNTIME_INTERACTIVE_TYPES.has(part.type));
+                const isChipWithControls = !!(
+                  part?.type?.startsWith("chip-") &&
+                  chipConfigs?.get(part.id)?.chipJson?.controls?.length
+                );
+                const showPanel = !simRunning
+                  || (part && RUNTIME_INTERACTIVE_TYPES.has(part.type))
+                  || isChipWithControls;
                 return showPanel ? (
                   <PartAttributePanel
                     part={part}
                     wiredComponent={wiredComponents.get(selectedPartId) ?? null}
+                    chipConfigs={chipConfigs ?? undefined}
+                    chipRuntimes={chipRuntimes}
                     onAttrChange={(attr, value) => onPartAttrChange(selectedPartId, attr, value)}
                     onRotate={(angle) => onPartRotate(selectedPartId, angle)}
                     onDelete={() => onDeletePart(selectedPartId)}

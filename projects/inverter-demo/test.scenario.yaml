@@ -1,0 +1,6 @@
+name: inverter-demo
+version: 1
+steps:
+  - wait-serial: "READY"
+  - wait-serial: "IN=HIGH OUT=0"
+  - wait-serial: "IN=LOW OUT=1"

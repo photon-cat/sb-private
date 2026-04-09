@@ -93,12 +93,11 @@ function autoRoute(a: Point, b: Point): Point[] {
 }
 
 /**
- * Clean a wire path by removing near-duplicate and collinear points.
+ * Remove near-duplicate consecutive points (same position within 0.5 px).
+ * Always safe — never drops intentional bends.
  */
-function cleanPath(points: Point[]): Point[] {
+function dedupPath(points: Point[]): Point[] {
   if (points.length <= 1) return points;
-
-  // Step 1: Remove near-duplicate consecutive points
   const deduped: Point[] = [points[0]];
   for (let i = 1; i < points.length; i++) {
     const prev = deduped[deduped.length - 1];
@@ -106,8 +105,19 @@ function cleanPath(points: Point[]): Point[] {
       deduped.push(points[i]);
     }
   }
+  return deduped;
+}
 
-  // Step 2: Remove collinear mid-points (3 consecutive points on same axis)
+/**
+ * Strip collinear mid-points from an auto-routed path.
+ *
+ * WARNING: Only call this on paths that were generated automatically
+ * (no user-authored bend hints). For user-drawn wires, collinear points
+ * are often deliberate — the user has staged a bend handle they plan to
+ * drag later — so we preserve them via {@link dedupPath} instead.
+ */
+function simplifyPath(points: Point[]): Point[] {
+  const deduped = dedupPath(points);
   if (deduped.length <= 2) return deduped;
   const result: Point[] = [deduped[0]];
   for (let i = 1; i < deduped.length - 1; i++) {
@@ -124,13 +134,19 @@ function cleanPath(points: Point[]): Point[] {
   return result;
 }
 
+// Legacy alias — kept so nothing in the wild breaks.
+function cleanPath(points: Point[]): Point[] {
+  return simplifyPath(points);
+}
+
 function buildWirePath(start: Point, end: Point, hints: string[]): Point[] {
   if (!hints || hints.length === 0) {
     if (Math.abs(start.x - end.x) < 0.5 || Math.abs(start.y - end.y) < 0.5) {
       return [start, end];
     }
-    // Horizontal-first routing to match Wokwi
-    return [start, { x: end.x, y: start.y }, end];
+    // Horizontal-first routing to match Wokwi. Auto-routed paths may be
+    // simplified aggressively since no user intent exists in them.
+    return simplifyPath([start, { x: end.x, y: start.y }, end]);
   }
 
   const starIdx = hints.indexOf("*");
@@ -157,7 +173,10 @@ function buildWirePath(start: Point, end: Point, hints: string[]): Point[] {
 
   toPath.reverse();
   const raw = [...fromPath, ...bridge, ...toPath];
-  return cleanPath(raw);
+  // User-drawn path: dedupe only. Don't strip collinear bend points — the
+  // user may have placed a 3-point straight segment to stage a handle for
+  // later dragging. simplifyPath would erase that intent.
+  return dedupPath(raw);
 }
 
 export function renderWires(
