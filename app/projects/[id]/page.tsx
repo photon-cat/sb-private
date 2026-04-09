@@ -177,6 +177,8 @@ export default function ProjectPage() {
     firmwareName,
     firmwareHex,
     chipConfigs,
+    chipRuntimes,
+    setChipRuntimes,
     handleStart,
     handleStop,
     handlePause,
@@ -1177,6 +1179,8 @@ export default function ProjectPage() {
         firmwareName={firmwareName}
         firmwareHex={firmwareHex}
         chipConfigs={chipConfigs}
+        chipRuntimes={chipRuntimes}
+        onChipRuntimesReady={setChipRuntimes}
         onStart={handleStart}
         onStop={handleStop}
         onPause={handlePause}

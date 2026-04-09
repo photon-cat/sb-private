@@ -1,11 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { projects, users } from "@/lib/db/schema";
-import { authorizeProjectWrite, getServerSession, isProjectOwner } from "@/lib/auth-middleware";
-import { listProjectFiles, deleteFile } from "@/lib/storage";
-import { logger, logActivity } from "@/lib/logger";
-import { destroyProjectSandbox } from "@/lib/sandbox";
+import { isLocalDev, localProjectExists } from "@/lib/local-projects";
 
 /**
  * GET /api/projects/:id/settings — project metadata (isPublic, isOwner, title)
@@ -20,6 +14,25 @@ export async function GET(
     if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
       return NextResponse.json({ error: "Invalid project ID" }, { status: 400 });
     }
+
+    if (isLocalDev()) {
+      if (!(await localProjectExists(id))) {
+        return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      }
+      return NextResponse.json({
+        id,
+        slug: id,
+        title: id,
+        isPublic: true,
+        isOwner: true,
+        ownerUsername: "local",
+      });
+    }
+
+    const { eq } = await import("drizzle-orm");
+    const { db } = await import("@/lib/db");
+    const { projects, users } = await import("@/lib/db/schema");
+    const { getServerSession, isProjectOwner } = await import("@/lib/auth-middleware");
 
     const rows = await db
       .select({
@@ -47,12 +60,10 @@ export async function GET(
 
     const isOwner = !!userId && await isProjectOwner(id, userId);
 
-    // Non-owners can't see private projects
     if (!project.isPublic && !isOwner) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    // Fetch owner username
     let ownerUsername: string | null = null;
     if (project.ownerId) {
       const ownerRows = await db
@@ -93,6 +104,17 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid project ID" }, { status: 400 });
     }
 
+    if (isLocalDev()) {
+      // No-op in local dev — no DB to update
+      return NextResponse.json({ success: true });
+    }
+
+    const { eq } = await import("drizzle-orm");
+    const { db } = await import("@/lib/db");
+    const { projects } = await import("@/lib/db/schema");
+    const { authorizeProjectWrite } = await import("@/lib/auth-middleware");
+    const { logActivity } = await import("@/lib/logger");
+
     const result = await authorizeProjectWrite(id);
     if (result.error) return result.error;
 
@@ -104,7 +126,6 @@ export async function PATCH(
     }
     if (typeof body.title === "string" && body.title.trim()) {
       updates.title = body.title.trim();
-      // Keep slug in sync with title
       const newSlug = body.title.trim()
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
@@ -143,13 +164,24 @@ export async function DELETE(
       return NextResponse.json({ error: "Invalid project ID" }, { status: 400 });
     }
 
+    if (isLocalDev()) {
+      // Don't allow deleting local projects via API for safety
+      return NextResponse.json({ error: "Delete not supported in local dev" }, { status: 403 });
+    }
+
+    const { eq } = await import("drizzle-orm");
+    const { db } = await import("@/lib/db");
+    const { projects } = await import("@/lib/db/schema");
+    const { authorizeProjectWrite } = await import("@/lib/auth-middleware");
+    const { listProjectFiles, deleteFile } = await import("@/lib/storage");
+    const { logger, logActivity } = await import("@/lib/logger");
+    const { destroyProjectSandbox } = await import("@/lib/sandbox");
+
     const result = await authorizeProjectWrite(id);
     if (result.error) return result.error;
 
-    // Destroy sandbox container + volume
     destroyProjectSandbox(id).catch(() => {});
 
-    // Delete files from MinIO
     try {
       const files = await listProjectFiles(id);
       for (const file of files) {
@@ -164,7 +196,6 @@ export async function DELETE(
       projectId: id,
     });
 
-    // Delete from DB (cascades handle related tables)
     await db.delete(projects).where(eq(projects.id, id));
 
     return NextResponse.json({ success: true });

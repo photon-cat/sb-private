@@ -3,16 +3,24 @@ import { execFile } from "child_process";
 import { writeFile, readFile, mkdir, rm } from "fs/promises";
 import path from "path";
 import os from "os";
-import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { db } from "@/lib/db";
-import { projects, builds } from "@/lib/db/schema";
-import { uploadFile } from "@/lib/storage";
-import { authorizeProjectRead, getServerSession } from "@/lib/auth-middleware";
-import { runProjectBuild } from "@/lib/sandbox";
-import { logActivity } from "@/lib/logger";
+import { isLocalDev, localProjectExists } from "@/lib/local-projects";
 
-const PIO_CMD = process.env.PIO_CMD || "/usr/bin/platformio";
+const PIO_CMD = process.env.PIO_CMD
+  || (isLocalDev() ? findLocalPio() : "/usr/bin/platformio");
+
+function findLocalPio(): string {
+  const candidates = [
+    path.join(os.homedir(), ".platformio-venv/bin/platformio"),
+    path.join(os.homedir(), ".local/bin/platformio"),
+    "/opt/homebrew/bin/platformio",
+    "/usr/local/bin/platformio",
+  ];
+  for (const p of candidates) {
+    try { require("fs").accessSync(p); return p; } catch { /* next */ }
+  }
+  return "platformio"; // fall back to PATH
+}
 const SANDBOX_ENABLED = process.env.SANDBOX_ENABLED === "true";
 
 const AVR_BOARDS = ["uno", "nano", "mega", "atmega328p", "leonardo", "micro", "pro", "promini"];
@@ -186,19 +194,28 @@ export async function POST(
       );
     }
 
-    // Require authentication to build
-    const session = await getServerSession();
-    if (!session?.user) {
-      return NextResponse.json(
-        { success: false, error: "Sign in to build projects" },
-        { status: 401 },
-      );
+    let projectId = id;
+
+    if (isLocalDev()) {
+      if (!(await localProjectExists(id))) {
+        return NextResponse.json({ success: false, error: "Project not found" }, { status: 404 });
+      }
+    } else {
+      const { getServerSession } = await import("@/lib/auth-middleware");
+      const { authorizeProjectRead } = await import("@/lib/auth-middleware");
+
+      const session = await getServerSession();
+      if (!session?.user) {
+        return NextResponse.json(
+          { success: false, error: "Sign in to build projects" },
+          { status: 401 },
+        );
+      }
+
+      const readResult = await authorizeProjectRead(id);
+      if (readResult.error) return readResult.error;
+      projectId = readResult.project.id;
     }
-
-    const readResult = await authorizeProjectRead(id);
-    if (readResult.error) return readResult.error;
-
-    const project = readResult.project;
 
     const buildStart = Date.now();
 
@@ -279,9 +296,12 @@ export async function POST(
     await mkdir(srcDir, { recursive: true });
     await mkdir(includeDir, { recursive: true });
 
-    // Write extra files (headers, etc.) — validate names to prevent path traversal
+    // Write extra files (headers, etc.) — validate names to prevent path traversal.
+    // Skip .chip.c / .chip.json files: those are Wokwi custom chip sources
+    // compiled separately by `wokwi-cli chip compile`, not by avr-gcc.
     for (const f of files) {
       if (!f.name || !f.content) continue;
+      if (f.name.endsWith(".chip.c") || f.name.endsWith(".chip.json")) continue;
       const safeName = path.basename(f.name);
       if (!VALID_FILENAME.test(safeName)) continue;
       const targetDir = safeName.endsWith(".h") ? includeDir : srcDir;
@@ -322,7 +342,8 @@ export async function POST(
     const firmwareFile = `firmware.${firmwareExt}`;
 
     if (SANDBOX_ENABLED) {
-      const sbResult = await runProjectBuild(project.id, {
+      const { runProjectBuild } = await import("@/lib/sandbox");
+      const sbResult = await runProjectBuild(projectId, {
         projectDir: BUILD_DIR,
         command: ["platformio", "run", "-e", board],
         timeout: 120_000,
@@ -360,21 +381,27 @@ export async function POST(
     }
 
     if (result.code !== 0) {
-      // Record failed build
-      await db.insert(builds).values({
-        id: buildId,
-        projectId: project.id,
-        status: "error",
-        board,
-        stdout: result.stdout,
-        stderr: result.stderr,
-      });
+      // Record failed build (production only)
+      if (!isLocalDev()) {
+        const { db } = await import("@/lib/db");
+        const { builds } = await import("@/lib/db/schema");
+        const { logActivity } = await import("@/lib/logger");
 
-      logActivity("build.error", {
-        projectId: project.id,
-        metadata: { board, buildId },
-        durationMs: Date.now() - buildStart,
-      });
+        await db.insert(builds).values({
+          id: buildId,
+          projectId,
+          status: "error",
+          board,
+          stdout: result.stdout,
+          stderr: result.stderr,
+        });
+
+        logActivity("build.error", {
+          projectId,
+          metadata: { board, buildId },
+          durationMs: Date.now() - buildStart,
+        });
+      }
 
       return NextResponse.json({
         success: false,
@@ -444,27 +471,33 @@ export async function POST(
       }
     }
 
-    // Upload firmware to MinIO
-    const hexKey = `builds/${buildId}/${firmwareFile}`;
-    const uploadContent = platform === "espressif32" ? bin! : hex;
-    await uploadFile(project.id, hexKey, uploadContent);
+    // Record build in production (DB + MinIO)
+    if (!isLocalDev()) {
+      const { db } = await import("@/lib/db");
+      const { builds } = await import("@/lib/db/schema");
+      const { uploadFile } = await import("@/lib/storage");
+      const { logActivity } = await import("@/lib/logger");
 
-    // Record successful build
-    await db.insert(builds).values({
-      id: buildId,
-      projectId: project.id,
-      status: "success",
-      board,
-      hexKey,
-      stdout: result.stdout,
-      stderr: result.stderr,
-    });
+      const hexKey = `builds/${buildId}/${firmwareFile}`;
+      const uploadContent = platform === "espressif32" ? bin! : hex;
+      await uploadFile(projectId, hexKey, uploadContent);
 
-    logActivity("build.success", {
-      projectId: project.id,
-      metadata: { board, buildId, platform },
-      durationMs: Date.now() - buildStart,
-    });
+      await db.insert(builds).values({
+        id: buildId,
+        projectId,
+        status: "success",
+        board,
+        hexKey,
+        stdout: result.stdout,
+        stderr: result.stderr,
+      });
+
+      logActivity("build.success", {
+        projectId,
+        metadata: { board, buildId, platform },
+        durationMs: Date.now() - buildStart,
+      });
+    }
 
     return NextResponse.json({
       success: true,

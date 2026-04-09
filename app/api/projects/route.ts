@@ -1,11 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq, desc, or, ilike, and, sql } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { projects, projectStars } from "@/lib/db/schema";
-import { generateProjectId } from "@/lib/db/projects";
-import { uploadFile } from "@/lib/storage";
-import { getServerSession } from "@/lib/auth-middleware";
-import { logActivity } from "@/lib/logger";
+import { isLocalDev, listLocalProjects, createLocalProject } from "@/lib/local-projects";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +57,34 @@ function extractMeta(
 }
 
 export async function GET(request: Request) {
+  if (isLocalDev()) {
+    return getLocalProjects(request);
+  }
+  return getDbProjects(request);
+}
+
+async function getLocalProjects(request: Request) {
   try {
+    const url = new URL(request.url);
+    const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
+    const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "25", 10)));
+    const q = url.searchParams.get("q")?.trim() || "";
+
+    const result = await listLocalProjects({ q, page, limit });
+    return NextResponse.json(result);
+  } catch (err) {
+    console.error("Failed to list local projects:", err);
+    return NextResponse.json({ error: "Failed to list projects" }, { status: 500 });
+  }
+}
+
+async function getDbProjects(request: Request) {
+  try {
+    const { eq, desc, or, ilike, and, sql } = await import("drizzle-orm");
+    const { db } = await import("@/lib/db");
+    const { projects, projectStars } = await import("@/lib/db/schema");
+    const { getServerSession } = await import("@/lib/auth-middleware");
+
     const url = new URL(request.url);
     const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
     const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "25", 10)));
@@ -81,7 +102,6 @@ export async function GET(request: Request) {
     // Build visibility condition
     let visibilityCondition;
     if (mine && userId) {
-      // "My projects" — only show projects owned by user
       visibilityCondition = eq(projects.ownerId, userId);
     } else {
       visibilityCondition = userId
@@ -89,11 +109,9 @@ export async function GET(request: Request) {
         : eq(projects.isPublic, true);
     }
 
-    // Build conditions array
     const conditions = [visibilityCondition];
 
     if (q) {
-      // Escape ILIKE wildcard characters to prevent pattern injection
       const escaped = q.replace(/[%_\\]/g, "\\$&");
       conditions.push(
         or(ilike(projects.slug, `%${escaped}%`), ilike(projects.title, `%${escaped}%`))!,
@@ -106,7 +124,6 @@ export async function GET(request: Request) {
 
     const whereClause = conditions.length === 1 ? conditions[0]! : and(...conditions);
 
-    // Get total count
     const countResult = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(projects)
@@ -115,7 +132,6 @@ export async function GET(request: Request) {
     const pages = Math.ceil(total / limit);
     const offset = (page - 1) * limit;
 
-    // Fetch only the columns we need (avoid pulling large diagramJson for listing)
     const rows = await db
       .select({
         id: projects.id,
@@ -173,7 +189,39 @@ const DEFAULT_DIAGRAM = {
 };
 
 export async function POST(request: Request) {
+  if (isLocalDev()) {
+    return postLocalProject(request);
+  }
+  return postDbProject(request);
+}
+
+async function postLocalProject(request: Request) {
   try {
+    const { name } = await request.json();
+    if (!name || typeof name !== "string") {
+      return NextResponse.json({ error: "Project name is required" }, { status: 400 });
+    }
+    const result = await createLocalProject(name);
+    return NextResponse.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("already exists")) {
+      return NextResponse.json({ error: message }, { status: 409 });
+    }
+    console.error("Failed to create project:", err);
+    return NextResponse.json({ error: "Failed to create project" }, { status: 500 });
+  }
+}
+
+async function postDbProject(request: Request) {
+  try {
+    const { db } = await import("@/lib/db");
+    const { projects } = await import("@/lib/db/schema");
+    const { generateProjectId } = await import("@/lib/db/projects");
+    const { uploadFile } = await import("@/lib/storage");
+    const { getServerSession } = await import("@/lib/auth-middleware");
+    const { logActivity } = await import("@/lib/logger");
+
     const { name } = await request.json();
 
     if (!name || typeof name !== "string") {
@@ -195,7 +243,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Require authentication to create projects
     const session = await getServerSession();
     if (!session?.user) {
       return NextResponse.json(
@@ -209,7 +256,6 @@ export async function POST(request: Request) {
     const slug = baseSlug;
     const diagramStr = JSON.stringify(DEFAULT_DIAGRAM, null, 2);
 
-    // Insert DB row
     await db.insert(projects).values({
       id,
       slug,
@@ -219,7 +265,6 @@ export async function POST(request: Request) {
       fileManifest: ["sketch.ino", "diagram.json"],
     });
 
-    // Upload default files to MinIO
     await uploadFile(id, "sketch.ino", DEFAULT_SKETCH);
     await uploadFile(id, "diagram.json", diagramStr);
 

@@ -1,12 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { execFile } from "child_process";
-import { writeFile, readFile, mkdir, rm } from "fs/promises";
+import { writeFile, readFile, mkdir, rm, access } from "fs/promises";
 import path from "path";
 import os from "os";
 import { nanoid } from "nanoid";
-import { authorizeProjectRead, getServerSession } from "@/lib/auth-middleware";
+import { isLocalDev, localProjectExists } from "@/lib/local-projects";
 
-const WOKWI_CLI = process.env.WOKWI_CLI_PATH || "wokwi-cli";
+const WOKWI_CLI = process.env.WOKWI_CLI_PATH || findLocalWokwiCli();
+
+function findLocalWokwiCli(): string {
+  // Check common install locations (synchronous since this runs at module load)
+  const fs = require("fs");
+  const candidates = [
+    path.join(os.homedir(), "bin/wokwi-cli"),
+    path.join(os.homedir(), ".wokwi/bin/wokwi-cli"),
+    "/opt/homebrew/bin/wokwi-cli",
+    "/usr/local/bin/wokwi-cli",
+  ];
+  for (const p of candidates) {
+    try { fs.accessSync(p); return p; } catch { /* next */ }
+  }
+  return "wokwi-cli";
+}
 const VALID_CHIP_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
 
 export async function POST(
@@ -23,16 +38,25 @@ export async function POST(
       );
     }
 
-    const session = await getServerSession();
-    if (!session?.user) {
-      return NextResponse.json(
-        { success: false, error: "Sign in to compile chips" },
-        { status: 401 },
-      );
+    if (isLocalDev()) {
+      if (!(await localProjectExists(id))) {
+        return NextResponse.json(
+          { success: false, error: "Project not found" },
+          { status: 404 },
+        );
+      }
+    } else {
+      const { getServerSession, authorizeProjectRead } = await import("@/lib/auth-middleware");
+      const session = await getServerSession();
+      if (!session?.user) {
+        return NextResponse.json(
+          { success: false, error: "Sign in to compile chips" },
+          { status: 401 },
+        );
+      }
+      const readResult = await authorizeProjectRead(id);
+      if (readResult.error) return readResult.error;
     }
-
-    const readResult = await authorizeProjectRead(id);
-    if (readResult.error) return readResult.error;
 
     const data = await request.json();
     const chipName: string = data.chipName || "";

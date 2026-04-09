@@ -1,9 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { projects } from "@/lib/db/schema";
-import { uploadFile, downloadFile, deleteFile, listProjectFiles } from "@/lib/storage";
-import { authorizeProjectRead, authorizeProjectWrite } from "@/lib/auth-middleware";
+import { isLocalDev, readLocalFile, writeLocalFile, listLocalProjectFiles, deleteLocalFile, localProjectExists } from "@/lib/local-projects";
 
 export async function GET(
   _request: Request,
@@ -16,6 +12,25 @@ export async function GET(
       return NextResponse.json({ error: "Invalid project ID" }, { status: 400 });
     }
 
+    if (isLocalDev()) {
+      if (!(await localProjectExists(id))) {
+        return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      }
+      const sketch = (await readLocalFile(id, "sketch.ino")) || "";
+      const allFiles = await listLocalProjectFiles(id);
+      const files: { name: string; content: string }[] = [];
+      for (const name of allFiles) {
+        if (name !== "sketch.ino" && (name.endsWith(".h") || name.endsWith(".cpp") || name.endsWith(".c") || name.endsWith(".chip.json") || name.endsWith(".chip.svg"))) {
+          const content = await readLocalFile(id, name);
+          if (content !== null) files.push({ name, content });
+        }
+      }
+      return NextResponse.json({ sketch, files });
+    }
+
+    const { downloadFile, listProjectFiles } = await import("@/lib/storage");
+    const { authorizeProjectRead } = await import("@/lib/auth-middleware");
+
     const readResult = await authorizeProjectRead(id);
     if (readResult.error) return readResult.error;
 
@@ -24,7 +39,7 @@ export async function GET(
     const allFiles = await listProjectFiles(id);
     const files: { name: string; content: string }[] = [];
     for (const name of allFiles) {
-      if (name !== "sketch.ino" && (name.endsWith(".h") || name.endsWith(".cpp") || name.endsWith(".c"))) {
+      if (name !== "sketch.ino" && (name.endsWith(".h") || name.endsWith(".cpp") || name.endsWith(".c") || name.endsWith(".chip.json") || name.endsWith(".chip.svg"))) {
         const content = await downloadFile(id, name);
         if (content !== null) files.push({ name, content });
       }
@@ -48,17 +63,43 @@ export async function PUT(
       return NextResponse.json({ error: "Invalid project ID" }, { status: 400 });
     }
 
+    const { sketch, files } = await request.json();
+
+    if (isLocalDev()) {
+      if (!(await localProjectExists(id))) {
+        return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      }
+      await writeLocalFile(id, "sketch.ino", sketch);
+      if (Array.isArray(files)) {
+        const existing = await listLocalProjectFiles(id);
+        const existingExtra = new Set(existing.filter((e) => e.endsWith(".h") || e.endsWith(".cpp") || e.endsWith(".c") || e.endsWith(".chip.json") || e.endsWith(".chip.svg")));
+        const newNames = new Set(files.map((f: { name: string }) => f.name));
+        for (const old of existingExtra) {
+          if (!newNames.has(old)) await deleteLocalFile(id, old);
+        }
+        for (const f of files as { name: string; content: string }[]) {
+          if (/^[a-zA-Z0-9_.-]+$/.test(f.name)) await writeLocalFile(id, f.name, f.content);
+        }
+      }
+      return NextResponse.json({ success: true });
+    }
+
+    const { eq } = await import("drizzle-orm");
+    const { db } = await import("@/lib/db");
+    const { projects } = await import("@/lib/db/schema");
+    const { uploadFile, downloadFile, deleteFile, listProjectFiles } = await import("@/lib/storage");
+    const { authorizeProjectWrite } = await import("@/lib/auth-middleware");
+
     const writeResult = await authorizeProjectWrite(id);
     if (writeResult.error) return writeResult.error;
 
     const project = writeResult.project;
-    const { sketch, files } = await request.json();
 
     await uploadFile(id, "sketch.ino", sketch);
 
     if (Array.isArray(files)) {
       const allFiles = await listProjectFiles(id);
-      const existingExtra = new Set(allFiles.filter((e) => e.endsWith(".h") || e.endsWith(".cpp") || e.endsWith(".c")));
+      const existingExtra = new Set(allFiles.filter((e) => e.endsWith(".h") || e.endsWith(".cpp") || e.endsWith(".c") || e.endsWith(".chip.json") || e.endsWith(".chip.svg")));
       const newFileNames = new Set(files.map((f: { name: string }) => f.name));
 
       for (const old of existingExtra) {

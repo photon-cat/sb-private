@@ -53,6 +53,9 @@ wokwi-integrations/
 projects/*/build/
 projects/*/sparky-chats.json
 
+# Local PlatformIO scratch (not part of app source)
+arduino_pio_test/
+
 # Video submission assets
 submission/
 privatedocs/
