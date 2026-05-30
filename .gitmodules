@@ -1,0 +1,3 @@
+[submodule "hardware-projects"]
+	path = hardware-projects
+	url = https://github.com/photon-cat/sparkbench-hw-projects
