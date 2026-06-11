@@ -9,6 +9,8 @@ SparkBench combines what normally takes 5 separate tools into one browser-based 
 - **Prompt-to-Circuit**: Describe what you want to build. Sparky (the AI agent) designs the schematic, writes the firmware, and presents a diff for your review.
 - **Cycle-Accurate Simulation**: Run your Arduino code on an AVR emulator with 13+ simulated components (LEDs, servos, encoders, displays, sensors, shift registers).
 - **KiCAD-Compatible PCB Editor**: Our custom-built PCB editor reads and writes native `.kicad_pcb` files. Built as a fork of KiCanvas with a full editing layer — component drag-and-drop, footprint rotation/flip, board outline editing (rectangle or SVG import), interactive trace routing, zone drawing, layer management, ratsnest display, courtyard DRC, undo/redo, and a 3D board preview. Everything stays in the KiCAD s-expression format so you can open your boards directly in KiCAD.
+
+  > **Planned migration → `sparkbench-canvas@editor-v1.0`** (GA 2026-06-10): the in-app fork above is superseded by the [sparkbench-canvas](https://github.com/sparkbencheda/sparkbench-canvas) v2 editor. It covers the full parity checklist (footprint placement + courtyard DRC, routing, vias/zones, board outline rect + SVG → `Edge.Cuts`, ratsnest, 50-step undo) behind the same integration shape we use today — `<sparkbench-editor>` web component, `pcbText` in → `save` event with serialized text out — plus a byte-identical round-trip serializer gated against KiCad 10 and a DOM-free `./core` export so Sparky's server-side board mutation (MCP tools / `pcb-pipeline`) can run the same engine headless in Node. See `docs/ARCHITECTURE.md` in that repo.
 - **DeepPCB Autorouter Integration**: One-click AI-powered autorouting via [DeepPCB](https://deeppcb.ai). Send your board to DeepPCB's cloud autorouter directly from the PCB editor or let Sparky handle it conversationally. Extracts constraints, validates, runs placement and routing, and pulls back the routed board — all streamed with live progress.
 - **Headless CI Testing**: Write YAML test scenarios and run them against the simulator — no hardware needed. AI-powered fuzz testing presses all the buttons and reports what broke.
 - **Full-Context AI Agent**: Sparky has access to your entire project (schematic, code, PCB, libraries) and can debug, refactor, add features, route your PCB, or explain your circuit.
@@ -105,7 +107,7 @@ The autorouter workflow:
 git clone https://github.com/photon-cat/sparkbench.git
 cd sparkbench
 npm install
-cp .env.example .env.local
+cp .env.local.example .env.local
 # Edit .env.local with your keys:
 #   ANTHROPIC_API_KEY=sk-ant-...
 #   DEEPPCB_API_KEY=...          (optional, enables autorouter)
@@ -113,6 +115,11 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to start building.
+
+Local development is intentionally host-native and filesystem-backed. `npm run dev`
+sets `SPARKBENCH_LOCAL_DEV=1`, so it does not require PostgreSQL, MinIO, Google
+OAuth, or Docker. Use `npm run dev:prod-like` or `docker compose -f docker-compose.prod.yml`
+only when testing production-style storage/auth behavior.
 
 ### SparkBench CLI
 
