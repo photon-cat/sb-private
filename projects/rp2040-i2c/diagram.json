@@ -1,0 +1,16 @@
+{
+  "version": 1, "author": "SparkBench", "editor": "wokwi",
+  "parts": [
+    { "id": "pico", "type": "wokwi-pi-pico", "top": 0, "left": 0, "attrs": {} },
+    { "id": "oled1", "type": "wokwi-ssd1306", "top": 0, "left": 200, "attrs": {} },
+    { "id": "led1", "type": "wokwi-led", "top": 0, "left": 400, "attrs": { "color": "green" } }
+  ],
+  "connections": [
+    [ "oled1:SDA", "pico:GP4", "blue", [] ],
+    [ "oled1:SCL", "pico:GP5", "yellow", [] ],
+    [ "oled1:VCC", "pico:3V3", "red", [] ],
+    [ "oled1:GND", "pico:GND.1", "black", [] ],
+    [ "pico:GP15", "led1:A", "green", [] ],
+    [ "led1:C", "pico:GND.2", "black", [] ]
+  ]
+}

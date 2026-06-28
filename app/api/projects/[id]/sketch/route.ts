@@ -87,7 +87,7 @@ export async function PUT(
     const { eq } = await import("drizzle-orm");
     const { db } = await import("@/lib/db");
     const { projects } = await import("@/lib/db/schema");
-    const { uploadFile, downloadFile, deleteFile, listProjectFiles } = await import("@/lib/storage");
+    const { uploadFile, deleteFile, listProjectFiles } = await import("@/lib/storage");
     const { authorizeProjectWrite } = await import("@/lib/auth-middleware");
 
     const writeResult = await authorizeProjectWrite(id);

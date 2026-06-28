@@ -1,11 +1,8 @@
 import { useState, useCallback, useEffect, useRef, MutableRefObject } from "react";
 import type { DiagramConnection } from "@/lib/diagram-parser";
-import { snapToGrid, getSnapMode, type SnapMode } from "@/lib/constants";
+import { snapToGrid, getSnapMode } from "@/lib/constants";
 
 export type ToolType = "cursor" | "wire";
-
-const WIRE_COLOR_CYCLE = ["green", "blue", "red", "gold", "orange", "purple", "pink"];
-let wireColorIdx = 0;
 
 /**
  * Auto-determine wire color based on pin function per Wokwi spec:
@@ -102,7 +99,6 @@ export function useWireDrawing({
   containerRef,
   onAddConnection,
   zoomRef,
-  panRef,
   activeTool,
 }: UseWireDrawingOptions): UseWireDrawingReturn {
   const [wireDrawing, setWireDrawing] = useState<WireDrawingState | null>(null);
@@ -148,7 +144,7 @@ export function useWireDrawing({
 
       const color = autoWireColor(wireDrawing.fromRef);
 
-      const conn: DiagramConnection = [fromRef, pinRef, color, hints];
+      const conn: DiagramConnection = { from: fromRef, to: pinRef, color, hints };
       onAddConnectionRef.current?.(conn);
       setWireDrawing(null);
     },

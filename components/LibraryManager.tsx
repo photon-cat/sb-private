@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import styles from "./LibraryManager.module.css";
 
 interface LibResult {
@@ -40,8 +40,11 @@ export default function LibraryManager({
   const searchRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const installed = parseLibraries(librariesTxt);
-  const installedSet = new Set(installed.map((n) => n.toLowerCase()));
+  const installed = useMemo(() => parseLibraries(librariesTxt), [librariesTxt]);
+  const installedSet = useMemo(
+    () => new Set(installed.map((n) => n.toLowerCase())),
+    [installed],
+  );
 
   const doSearch = useCallback(async (q: string) => {
     if (q.length < 2) {

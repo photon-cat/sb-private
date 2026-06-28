@@ -102,9 +102,11 @@ export interface SourceMapEntry {
 export interface BuildResult {
   success: boolean;
   hex: string;
-  bin?: string;           // base64-encoded .bin for ESP32
-  platform?: "atmelavr" | "espressif32";
-  simulatable?: boolean;  // false for ESP32
+  bin?: string;           // base64-encoded .bin for ESP32 / STM32
+  platform?: "atmelavr" | "espressif32" | "ststm32";
+  simulatable?: boolean;  // true when the current client (avr8js) can run it
+  /** Which in-browser core runs this firmware: avr8js | cortex-m0 | unicorn-arm | null. */
+  simCore?: "avr8js" | "cortex-m0" | "unicorn-arm" | null;
   firmware?: string;      // filename: "firmware.hex" or "firmware.bin"
   error?: string;
   stdout?: string;

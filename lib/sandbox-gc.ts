@@ -43,7 +43,6 @@ export async function gcSandboxes(
   const lines = listResult.stdout.trim().split("\n").filter(Boolean);
   if (lines.length === 0) return { cleaned: 0, errors: [] };
 
-  const now = Date.now();
   let cleaned = 0;
   const errors: string[] = [];
 

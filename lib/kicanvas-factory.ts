@@ -17,7 +17,6 @@ import type {
   PCBZone,
   PCBPoint,
   PCBNet,
-  CopperLayerId,
 } from "./pcb-types";
 
 // KiCanvas classes — these are imported from vendored source
@@ -32,35 +31,6 @@ function buildNetMap(nets: PCBNet[]): Map<string, number> {
     map.set(n.name, n.number);
   }
   return map;
-}
-
-/** KiCad layer ordinals for the layers we care about. */
-const LAYER_ORDINALS: Record<string, number> = {
-  "F.Cu": 0,
-  "B.Cu": 31,
-  "B.Adhes": 32,
-  "F.Adhes": 33,
-  "B.Paste": 34,
-  "F.Paste": 35,
-  "B.SilkS": 36,
-  "F.SilkS": 37,
-  "B.Mask": 38,
-  "F.Mask": 39,
-  "Dwgs.User": 40,
-  "Cmts.User": 41,
-  "Eco1.User": 42,
-  "Eco2.User": 43,
-  "Edge.Cuts": 44,
-  "Margin": 45,
-  "B.CrtYd": 46,
-  "F.CrtYd": 47,
-  "B.Fab": 48,
-  "F.Fab": 49,
-};
-
-function layerType(name: string): string {
-  if (name.endsWith(".Cu")) return "signal";
-  return "user";
 }
 
 function round4(n: number): number {

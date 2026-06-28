@@ -16,6 +16,9 @@ RUN platformio platform install atmelavr
 # Pre-cache espressif32 platform and toolchain
 RUN platformio platform install espressif32
 
+# Pre-cache ststm32 platform and toolchain (STM32F103 Blue Pill etc.)
+RUN platformio platform install ststm32
+
 # Do dummy builds to trigger framework downloads and cache them
 RUN mkdir -p /tmp/dummy/src && \
     echo '[env:uno]\nplatform = atmelavr\nboard = uno\nframework = arduino' > /tmp/dummy/platformio.ini && \

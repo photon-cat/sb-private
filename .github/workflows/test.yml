@@ -20,7 +20,59 @@ jobs:
       - run: npm ci
 
       - name: Run unit and integration tests
-        run: npm test
+        run: npm run test:ci
+
+      - name: Upload unit test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: test-results/unit.xml
+
+  scenario-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Install wokwi-cli (for custom-chip projects)
+        run: |
+          curl -L https://wokwi.com/ci/install.sh | sh
+          echo "$HOME/.wokwi/bin" >> "$GITHUB_PATH"
+
+      - name: Install Verilator (for SystemVerilog custom chips)
+        run: sudo apt-get update && sudo apt-get install -y verilator
+
+      - name: Cache PlatformIO toolchains
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}-avr
+
+      - run: npm ci
+
+      - name: Run scenario tests (compile + simulate every project)
+        env:
+          PLATFORMIO_CMD: platformio
+        run: npm run test:scenarios
+
+      - name: Upload scenario test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scenario-test-results
+          path: test-results/scenarios.xml
 
   e2e-tests:
     runs-on: ubuntu-latest

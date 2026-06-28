@@ -1,0 +1,11 @@
+{ "version": 1, "author": "test", "editor": "sparkbench",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0 },
+    { "type": "chip-counter", "id": "cnt", "top": -120, "left": 200, "attrs": {} }
+  ],
+  "connections": [
+    ["uno:8", "cnt:clk", "green", []], ["uno:9", "cnt:rst", "red", []],
+    ["uno:10", "cnt:q0", "blue", []], ["uno:11", "cnt:q1", "blue", []],
+    ["uno:12", "cnt:q2", "blue", []], ["uno:13", "cnt:q3", "blue", []]
+  ]
+}

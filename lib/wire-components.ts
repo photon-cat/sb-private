@@ -17,6 +17,7 @@ import { MPU6050Controller } from "./mpu6050-sim";
 import { BMP180Controller } from "./bmp180-sim";
 import { EncoderSimulator } from "./encoder-sim";
 import { LCD1602Controller } from "./lcd1602-controller";
+import { ILI9341Controller } from "./ili9341-controller";
 
 export interface WiredComponent {
   part: DiagramPart;
@@ -54,6 +55,10 @@ export interface WiredComponent {
   ssd1306?: SSD1306Controller;
   /** LCD1602/LCD2004 controller — set onCharactersChange to receive buffer updates */
   lcd1602?: LCD1602Controller;
+  /** Custom chip runtime (for chips that expose a framebuffer or attrs). */
+  chipRuntime?: import("./chip-runtime").CustomChipRuntime;
+  /** ILI9341 SPI TFT controller — exposes a framebuffer via getFramebuffer(). */
+  ili9341?: ILI9341Controller;
   /** Cleanup listener */
   cleanup?: () => void;
 }
@@ -62,23 +67,22 @@ export interface WiredComponent {
  * Find all connections for a specific part in the diagram.
  * Returns a map of pinName -> array of "otherPartId:otherPinName" refs.
  */
-function findPartConnections(
+export function findPartConnections(
   diagram: Diagram,
   partId: string,
 ): Map<string, string[]> {
   const map = new Map<string, string[]>();
   const prefix = `${partId}:`;
   for (const conn of diagram.connections) {
-    const [a, b] = conn;
-    if (a.startsWith(prefix)) {
-      const pinName = a.slice(prefix.length);
+    if (conn.from.startsWith(prefix)) {
+      const pinName = conn.from.slice(prefix.length);
       const list = map.get(pinName) || [];
-      list.push(b);
+      list.push(conn.to);
       map.set(pinName, list);
-    } else if (b.startsWith(prefix)) {
-      const pinName = b.slice(prefix.length);
+    } else if (conn.to.startsWith(prefix)) {
+      const pinName = conn.to.slice(prefix.length);
       const list = map.get(pinName) || [];
-      list.push(a);
+      list.push(conn.from);
       map.set(pinName, list);
     }
   }
@@ -264,7 +268,75 @@ export function wireComponents(
   // --- Rotary encoders ---
   wireEncoders(runner, diagram, resolvedMcuId!, pinMapper, wired);
 
+  // --- ILI9341 SPI TFT displays ---
+  wireILI9341(runner, diagram, resolvedMcuId!, pinMapper, wired);
+
   return { wired, i2cBus };
+}
+
+/**
+ * Detect and wire wokwi-ili9341 SPI TFT displays. The AVR is SPI master; the
+ * controller decodes the byte stream gated by its CS pin and classified by its
+ * DC (data/command) pin. Chains runner.spi.onByte so it coexists with custom
+ * SPI chips (only the CS-selected device responds).
+ */
+function wireILI9341(
+  runner: AVRRunnerLike,
+  diagram: Diagram,
+  mcuId: string,
+  pinMapper: (name: string) => PinInfo | null,
+  wired: Map<string, WiredComponent>,
+) {
+  for (const part of diagram.parts) {
+    if (part.type !== "wokwi-ili9341") continue;
+
+    const conns = findPartConnections(diagram, part.id);
+    const resolveMcuPin = (...pinNames: string[]): PinInfo | null => {
+      for (const pinName of pinNames) {
+        const targets = conns.get(pinName);
+        if (!targets) continue;
+        for (const ref of targets) {
+          const [refPart, refPin] = ref.split(":");
+          if (refPart === mcuId) {
+            const info = pinMapper(refPin);
+            if (info) return info;
+          }
+        }
+      }
+      return null;
+    };
+
+    const csPin = resolveMcuPin("CS");
+    const dcPin = resolveMcuPin("DC", "D/C", "DC.1");
+    if (!dcPin) continue; // DC is required to classify command vs data
+
+    const width = parseInt(part.attrs.width || "240", 10);
+    const height = parseInt(part.attrs.height || "320", 10);
+    const controller = new ILI9341Controller(width, height);
+
+    const prev = runner.spi.onByte;
+    const handler = (mosi: number) => {
+      // CS high (or unconnected-but-present) → not selected; delegate.
+      const selected = csPin ? getPort(runner, csPin.port).pinState(csPin.pin) === PinState.Low : true;
+      if (!selected) {
+        prev(mosi);
+        return;
+      }
+      const isCommand = getPort(runner, dcPin.port).pinState(dcPin.pin) === PinState.Low;
+      controller.processByte(mosi, isCommand);
+      runner.spi.completeTransfer(0); // writes don't return MISO data
+    };
+    runner.spi.onByte = handler;
+
+    const wc = wired.get(part.id) || { part };
+    wc.ili9341 = controller;
+    const prevCleanup = wc.cleanup;
+    wc.cleanup = () => {
+      prevCleanup?.();
+      if (runner.spi.onByte === handler) runner.spi.onByte = prev;
+    };
+    wired.set(part.id, wc);
+  }
 }
 
 /**

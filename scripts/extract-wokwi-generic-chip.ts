@@ -36,10 +36,9 @@ async function snap(page: Page, name: string) {
 async function main() {
   const args = process.argv.slice(2);
   let chipName = "inspect-me";
-  let pinCount = 4;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--name") chipName = args[++i];
-    else if (args[i] === "--pins") pinCount = parseInt(args[++i], 10);
+    else if (args[i] === "--pins") i++;
   }
 
   const browser = await chromium.launch({ headless: true });

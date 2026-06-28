@@ -1,0 +1,5 @@
+name: ssd1306-shapes
+version: 1
+steps:
+  - wait-serial: "DONE"
+  - expect-display: { part-id: oled1, min-filled: 500 }

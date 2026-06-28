@@ -1,0 +1,12 @@
+{ "version": 1, "author": "test", "editor": "sparkbench",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0 },
+    { "type": "chip-spislave", "id": "chip1", "top": -120, "left": 200, "attrs": {} }
+  ],
+  "connections": [
+    ["uno:10", "chip1:CS", "green", []],
+    ["uno:13", "chip1:SCK", "blue", []],
+    ["uno:11", "chip1:MOSI", "orange", []],
+    ["uno:12", "chip1:MISO", "purple", []]
+  ]
+}

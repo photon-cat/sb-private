@@ -1,0 +1,4 @@
+name: verilog-counter
+version: 1
+steps:
+  - wait-serial: "COUNT=5"

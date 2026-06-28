@@ -23,13 +23,13 @@ import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import GridOnIcon from "@mui/icons-material/GridOn";
 import HelpIcon from "@mui/icons-material/Help";
 import AddPartPanel from "./AddPartPanel";
-import type { AVRRunnerLike } from "@/lib/pin-mapping";
+import { type SimRunner, runnerCycles, runnerClockHz } from "@/lib/sim/sim-runner";
 
 type Status = "idle" | "compiling" | "running" | "paused" | "error" | "compiled";
 
 interface SimulationControlsProps {
   status: Status;
-  runner: AVRRunnerLike | null;
+  runner: SimRunner | null;
   onStart: () => void;
   onStop: () => void;
   onPause: () => void;
@@ -124,8 +124,8 @@ export default function SimulationControls({
       setDisplayMs(total);
 
       if (runner && total > 0) {
-        const expectedCycles = (total / 1000) * 16_000_000;
-        const actualCycles = runner.cpu.cycles;
+        const expectedCycles = (total / 1000) * runnerClockHz(runner);
+        const actualCycles = runnerCycles(runner);
         setSpeed(Math.round((actualCycles / expectedCycles) * 100));
       }
     }, 100);
@@ -163,6 +163,7 @@ export default function SimulationControls({
           size="small"
           onClick={onStart}
           disabled={isCompiling}
+          aria-label="Run simulation"
           sx={{
             ...fabSx("#335533", "#446644"),
             "&.Mui-disabled": { bgcolor: "#2a2a2a", color: "#666" },
@@ -262,12 +263,13 @@ export default function SimulationControls({
   // Running / paused state
   return (
     <>
-      <Fab size="small" onClick={onRestart} sx={fabSx("#335533", "#446644")}>
+      <Fab size="small" onClick={onRestart} aria-label="Restart simulation" sx={fabSx("#335533", "#446644")}>
         <ReplayIcon />
       </Fab>
       <Fab
         size="small"
         onClick={onStop}
+        aria-label="Stop simulation"
         sx={fabSx("#333", "#444")}
       >
         <StopIcon sx={{ fontSize: 18 }} />
@@ -275,6 +277,7 @@ export default function SimulationControls({
       <Fab
         size="small"
         onClick={isPaused ? onResume : onPause}
+        aria-label={isPaused ? "Resume simulation" : "Pause simulation"}
         sx={fabSx("rgba(50,50,50,0.8)", "rgba(70,70,70,0.9)")}
       >
         {isPaused ? <PlayArrowIcon /> : <PauseIcon />}

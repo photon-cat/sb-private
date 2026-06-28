@@ -2,7 +2,7 @@
  * Dynamic custom-chip web component.
  *
  * Each registered chip becomes a `<chip-XXX>` HTML element. It exposes
- * `pinInfo` as an instance property (matching @wokwi/elements convention, so
+ * `pinInfo` as an instance property (matching @sparkbench/elements convention, so
  * DiagramCanvas's wire router can find pin positions), and renders one of two
  * visuals:
  *
@@ -225,7 +225,7 @@ export function registerCustomChipElement(
 
   class CustomChipEl extends HTMLElement {
     // Instance properties so (el as any).pinInfo / .chipWidth / .chipHeight
-    // work — matches the @wokwi/elements convention used by DiagramCanvas.
+    // work — matches the @sparkbench/elements convention used by DiagramCanvas.
     // These defaults come from chip.json's static `pins` array; they may
     // be overridden per-instance from the diagram.json `attrs.pins`
     // value via the `pins` attribute on this element.

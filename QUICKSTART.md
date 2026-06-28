@@ -51,7 +51,7 @@ You'll see engine warnings about Node 22 from one package (`camera-controls`) â€
 ## 4. Configure environment
 
 ```bash
-cp .env.example .env.local
+cp .env.local.example .env.local
 ```
 
 Edit `.env.local` and add your keys:
@@ -60,6 +60,10 @@ Edit `.env.local` and add your keys:
 - `DEEPPCB_API_KEY` â€” optional, enables PCB autorouting
 
 The `PLATFORMIO_CORE_DIR` variable is optional and defaults to `~/.platformio`.
+
+`npm run dev` forces simple filesystem-backed local development. Do not put
+`DATABASE_URL` in `.env.local` unless you intentionally want production-style
+Postgres/MinIO/auth behavior.
 
 ## 5. Start the dev server
 
@@ -89,6 +93,7 @@ pio run -d _build
 | `pio: command not found` | Run `pip3 install platformio` or check your PATH |
 | Build fails with missing libraries | PlatformIO auto-installs deps on first run; ensure internet access |
 | `.env.local` not picked up | Restart the dev server after editing `.env.local` |
+| Local dev asks for login or MinIO | Use `npm run dev`; use `npm run dev:prod-like` only for production-style debugging |
 
 ## Project structure (key paths)
 

@@ -9,12 +9,14 @@ import {
   AVRUSART,
   AVRTWI,
   AVRADC,
+  AVRSPI,
   portBConfig,
   portCConfig,
   portDConfig,
   usart0Config,
   twiConfig,
   adcConfig,
+  spiConfig,
 } from "avr8js";
 import { loadHex } from "./intelhex";
 import { disassembleProgram, type DisassembledInstruction } from "./disassembler";
@@ -29,6 +31,10 @@ export type DebuggerListener = (event: DebuggerEvent) => void;
 
 const FLASH = 0x8000;
 
+export interface AVRDebugRunnerOptions {
+  clockHz?: number;
+}
+
 export class AVRDebugRunner {
   readonly program = new Uint16Array(FLASH);
   readonly cpu: CPU;
@@ -41,7 +47,8 @@ export class AVRDebugRunner {
   readonly usart: AVRUSART;
   readonly twi: AVRTWI;
   readonly adc: AVRADC;
-  readonly speed = 16e6;
+  readonly spi: AVRSPI;
+  readonly speed: number;
 
   breakpoints = new Set<number>();
   state: DebuggerState = "stopped";
@@ -61,9 +68,13 @@ export class AVRDebugRunner {
   private instructionsPerFrame = 10000;
   private hzMode = false; // true when speed <= 1000 (Hz-based stepping)
 
-  constructor(hex: string) {
+  constructor(hex: string, options?: AVRDebugRunnerOptions) {
+    if (options?.clockHz !== undefined && (options.clockHz <= 0 || !isFinite(options.clockHz))) {
+      throw new Error(`clockHz must be a positive finite number, got ${options.clockHz}`);
+    }
+    this.speed = options?.clockHz ?? 16e6;
     loadHex(hex, new Uint8Array(this.program.buffer));
-    this.cpu = new CPU(this.program);
+    this.cpu = new CPU(this.program, 2048); // ATmega328P 2 KB SRAM → correct RAMEND/SP
     this.timer0 = new AVRTimer(this.cpu, timer0Config);
     this.timer1 = new AVRTimer(this.cpu, timer1Config);
     this.timer2 = new AVRTimer(this.cpu, timer2Config);
@@ -73,6 +84,7 @@ export class AVRDebugRunner {
     this.usart = new AVRUSART(this.cpu, usart0Config, this.speed);
     this.twi = new AVRTWI(this.cpu, twiConfig, this.speed);
     this.adc = new AVRADC(this.cpu, adcConfig);
+    this.spi = new AVRSPI(this.cpu, spiConfig, this.speed);
 
     this.usart.onByteTransmit = (byte: number) => {
       this.serialOutput += String.fromCharCode(byte);

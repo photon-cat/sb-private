@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import type { FlashProgress } from "@/lib/stk500";
 
+
 export interface UseWebFlashReturn {
   isSupported: boolean;
   isFlashing: boolean;
@@ -33,7 +34,7 @@ export function useWebFlash(): UseWebFlashReturn {
 
     try {
       // Request port from user (browser shows picker)
-      const port = await navigator.serial.requestPort({
+      const port = await navigator.serial!.requestPort({
         filters: [
           { usbVendorId: 0x2341 }, // Arduino SA
           { usbVendorId: 0x2a03 }, // Arduino.org

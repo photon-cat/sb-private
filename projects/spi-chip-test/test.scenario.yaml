@@ -1,0 +1,6 @@
+name: spi-chip-test
+version: 1
+steps:
+  - wait-serial: "READY"
+  - wait-serial: "A=42"
+  - wait-serial: "B=F0"

@@ -1,7 +1,7 @@
 /**
  * Render SparkBench display controller buffers to RGBA PNG bytes.
  *
- * Matches the pixel layout and palette that `@wokwi/elements` ssd1306-element
+ * Matches the pixel layout and palette that `@sparkbench/elements` ssd1306-element
  * and lcd1602-element use so the output can be byte-compared against
  * `wokwi-cli --screenshot-file` captures.
  */
@@ -9,11 +9,11 @@
 import { encodePngRgba } from "./png-encoder";
 import type { SSD1306Controller } from "./ssd1306-controller";
 import type { LCD1602Controller } from "./lcd1602-controller";
-import { fontA00 } from "@wokwi/elements";
+import { fontA00 } from "@sparkbench/elements";
 
 // ── SSD1306 (128×64, 1 bpp) ──────────────────────────────────────────────
 
-/** SSD1306 colors matching @wokwi/elements defaults (white-on-black). */
+/** SSD1306 colors matching @sparkbench/elements defaults (white-on-black). */
 const SSD1306_OFF: [number, number, number, number] = [0, 0, 0, 255];
 const SSD1306_ON: [number, number, number, number] = [255, 255, 255, 255];
 
@@ -59,7 +59,7 @@ export function encodeSsd1306Png(controller: SSD1306Controller): Buffer {
 
 /**
  * Render LCD1602 character buffer to a simple bitmap using the A00 font
- * from @wokwi/elements. Each glyph is 5×8 pixels; we render at 16 cols ×
+ * from @sparkbench/elements. Each glyph is 5×8 pixels; we render at 16 cols ×
  * 2 rows with a 1 pixel gap between chars and 2 pixel gap between rows,
  * so output is (5*16 + 15) × (8*2 + 2) = 95 × 18.
  */
@@ -123,4 +123,18 @@ export function lcd1602ToRgba(controller: LCD1602Controller): {
 export function encodeLcd1602Png(controller: LCD1602Controller): Buffer {
   const { width, height, rgba } = lcd1602ToRgba(controller);
   return encodePngRgba(width, height, rgba);
+}
+
+// ── Generic RGBA framebuffer (custom chips, ILI9341, etc.) ───────────────
+
+/**
+ * Encode any RGBA framebuffer (width*height*4 bytes) to PNG. Used by custom
+ * chip displays and SPI TFT controllers that already store RGBA pixels.
+ */
+export function encodeFramebufferPng(fb: {
+  width: number;
+  height: number;
+  pixels: Uint8Array;
+}): Buffer {
+  return encodePngRgba(fb.width, fb.height, fb.pixels);
 }

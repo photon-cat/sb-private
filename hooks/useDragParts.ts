@@ -129,7 +129,7 @@ export function useDragParts({ onPartMove, onPartSelect, onPartDrag, zoomRef, lo
         onPartSelectRef.current?.(partId);
       }
     });
-  }, [zoomRef]);
+  }, [lockedRef, zoomRef]);
 
   return { attachDragHandlers };
 }

@@ -5,7 +5,7 @@ import { buildSystemPrompt } from "@/lib/sparky-prompts";
 import { parseDiagram } from "@/lib/diagram-parser";
 import { extractNetlist } from "@/lib/netlist";
 import { initPCBFromSchematic } from "@/lib/pcb-parser";
-import { getFootprintForType, generateFootprintByType } from "@/lib/pcb-footprints";
+import { getFootprintForType } from "@/lib/pcb-footprints";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
@@ -19,9 +19,8 @@ import {
   existsSync,
   writeFileSync,
   realpathSync,
-  statSync,
 } from "fs";
-import { readdir, readFile, stat } from "fs/promises";
+import { readdir, readFile } from "fs/promises";
 import { join, resolve } from "path";
 import os from "os";
 
@@ -170,7 +169,7 @@ function createSimulationServer(write: (data: Record<string, any>) => void) {
         "RunSimulation",
         "Build and run the current project in the SparkBench simulator. The user will see the circuit come alive and can interact with buttons, sensors, etc. Call this after writing/editing the sketch and diagram files.",
         { reason: z.string().optional().describe("Brief reason for running, e.g. 'test the LED circuit'") },
-        async (args) => {
+        async () => {
           write({ type: "sim_command", action: "start" });
           return { content: [{ type: "text" as const, text: "Simulation started. The user can now see the circuit running in the simulator and interact with it. Serial output will appear in the Serial Monitor." }] };
         },
@@ -179,7 +178,7 @@ function createSimulationServer(write: (data: Record<string, any>) => void) {
         "StopSimulation",
         "Stop the currently running simulation.",
         { reason: z.string().optional().describe("Brief reason for stopping") },
-        async (args) => {
+        async () => {
           write({ type: "sim_command", action: "stop" });
           return { content: [{ type: "text" as const, text: "Simulation stopped." }] };
         },
@@ -279,7 +278,7 @@ function createSimulationServer(write: (data: Record<string, any>) => void) {
         "UpdatePCB",
         "Regenerate the PCB layout from diagram.json. Call this after setting pcbX/pcbY positions and verifying with CheckFloorplan. This triggers the frontend to rebuild board.kicad_pcb from the current diagram.",
         { reason: z.string().optional().describe("Brief reason, e.g. 'apply floorplan positions'") },
-        async (args) => {
+        async () => {
           write({ type: "pcb_command", action: "update" });
           return { content: [{ type: "text" as const, text: "PCB regeneration triggered. The board layout will update with the new footprint positions from diagram.json." }] };
         },
@@ -354,7 +353,6 @@ async function setupTempDir(projectId: string, slug: string): Promise<string> {
 async function syncTempDirToStorage(
   projectId: string,
   tmpDir: string,
-  originalFiles: Set<string>,
 ): Promise<string[]> {
   const changedFiles: string[] = [];
 
@@ -493,9 +491,6 @@ ${projectInstructions}${contextSection}`;
 
   const encoder = new TextEncoder();
 
-  // Track original files for sync
-  const originalFiles = new Set(await listProjectFiles(project.id));
-
   const stream = new ReadableStream({
     async start(controller) {
       const write = (data: Record<string, any>) => {
@@ -556,7 +551,6 @@ ${projectInstructions}${contextSection}`;
           options: buildQueryOptions(resumeId),
         });
 
-        let fullText = "";
         let turnCount = 0;
 
         for await (const msg of q) {
@@ -573,7 +567,6 @@ ${projectInstructions}${contextSection}`;
             case "stream_event": {
               const evt = (msg as any).event;
               if (evt?.type === "content_block_delta" && evt.delta?.type === "text_delta") {
-                fullText += evt.delta.text;
                 write({ type: "text_delta", content: evt.delta.text });
               }
               break;
@@ -636,7 +629,7 @@ ${projectInstructions}${contextSection}`;
                 // can fetch the latest files immediately on receiving it.
                 if (isOwner) {
                   try {
-                    const changedFiles = await syncTempDirToStorage(project.id, tmpDir, originalFiles);
+                    const changedFiles = await syncTempDirToStorage(project.id, tmpDir);
                     if (changedFiles.length > 0) {
                       const allFiles = await listProjectFiles(project.id);
                       const updates: Record<string, any> = {
@@ -717,7 +710,7 @@ ${projectInstructions}${contextSection}`;
         // Sync files if not already done in the success handler
         if (isOwner && !filesSynced) {
           try {
-            const changedFiles = await syncTempDirToStorage(project.id, tmpDir, originalFiles);
+            const changedFiles = await syncTempDirToStorage(project.id, tmpDir);
 
             if (changedFiles.length > 0) {
               const allFiles = await listProjectFiles(project.id);

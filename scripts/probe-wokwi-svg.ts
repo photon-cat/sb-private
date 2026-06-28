@@ -16,8 +16,6 @@ async function main() {
 
     const info = await page.evaluate(() => {
       const summary: Record<string, number> = {};
-      const samples: unknown[] = [];
-
       // Count by tag and parent SVG size
       const all = Array.from(document.querySelectorAll("svg"));
       const svgSummary: { w: number; h: number; children: number; classList: string }[] = [];

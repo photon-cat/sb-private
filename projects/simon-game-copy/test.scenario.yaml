@@ -55,5 +55,8 @@ steps:
       value: 0
   - delay: 5000
   # By now at least one wrong button should have triggered game over
-  - wait-serial: 'Game over! your score:'
+  # This implementation prints "*** GAME OVER ***" — the original simon-game
+  # used "Game over! your score:". This copy diverged, so the assertion matches
+  # this firmware's actual serial protocol.
+  - wait-serial: '*** GAME OVER ***'
     timeout: 5000

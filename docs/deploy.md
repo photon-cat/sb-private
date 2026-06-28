@@ -16,7 +16,26 @@ git clone <repo-url> && cd sparkbench
 
 On first run the script creates `.env` from `.env.example` and exits — edit the file with your secrets, then re-run `./deploy.sh`.
 
+The npm aliases are intentionally thin wrappers:
+
+```bash
+npm run deploy       # same as ./deploy.sh
+npm run compose:prod # docker compose -f docker-compose.prod.yml ...
+```
+
+Do not use `npm run dev` as a production smoke test; it forces local filesystem mode. Use Docker Compose or `npm run dev:prod-like` for production-style storage/auth debugging.
+
 ## Architecture
+
+This deployment model is adequate for the current traffic profile. Keep it boring:
+
+- Run the Next.js app as a container on the VPS.
+- Keep Postgres and MinIO as compose-managed services with persistent volumes.
+- Put Caddy or nginx in front for TLS.
+- Use direct PlatformIO builds in the app container by default.
+- Enable the extra Docker sandbox only if untrusted multi-user build isolation becomes more important than operational simplicity.
+
+The local development model should not mirror this stack by default. Local development should run directly on the machine and use filesystem-backed projects; reserve Docker Compose locally for production smoke tests and deployment debugging.
 
 ```
                     ┌─────────────────────────────┐

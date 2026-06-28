@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { Diagram } from "@/lib/diagram-parser";
-import type { AVRRunner } from "@/lib/avr-runner";
+import type { SimRunner } from "@/lib/sim/sim-runner";
 import { buildProject, compileChip } from "@/lib/api";
 import { findChipFiles } from "@/lib/chip-json";
 import type { CustomChipConfig, CustomChipRuntime } from "@/lib/chip-runtime";
@@ -21,7 +21,7 @@ export interface UseSimulationOptions {
 export interface UseSimulationReturn {
   status: SimulationStatus;
   serialOutput: string;
-  runner: AVRRunner | null;
+  runner: SimRunner | null;
   firmwareBin: string | null;   // base64 .bin for ESP32 download
   firmwareName: string | null;  // "firmware.bin" or "firmware.hex"
   firmwareHex: string | null;   // raw Intel HEX string for AVR flashing
@@ -45,13 +45,13 @@ export function useSimulation({
 }: UseSimulationOptions): UseSimulationReturn {
   const [status, setStatus] = useState<SimulationStatus>("idle");
   const [serialOutput, setSerialOutput] = useState("");
-  const [runner, setRunner] = useState<AVRRunner | null>(null);
+  const [runner, setRunner] = useState<SimRunner | null>(null);
   const [firmwareBin, setFirmwareBin] = useState<string | null>(null);
   const [firmwareName, setFirmwareName] = useState<string | null>(null);
   const [firmwareHex, setFirmwareHex] = useState<string | null>(null);
   const [chipConfigs, setChipConfigs] = useState<Map<string, CustomChipConfig> | null>(null);
   const [chipRuntimes, setChipRuntimes] = useState<Map<string, CustomChipRuntime>>(new Map());
-  const runnerRef = useRef<AVRRunner | null>(null);
+  const runnerRef = useRef<SimRunner | null>(null);
 
   const handleStart = useCallback(async () => {
     if (!diagram) return;
@@ -67,6 +67,29 @@ export function useSimulation({
         let errMsg = `Build error: ${buildResult.error}\n`;
         if (buildResult.stderr) errMsg += `\n${buildResult.stderr}\n`;
         setSerialOutput(errMsg);
+        return;
+      }
+
+      // STM32 in-browser cores: cortex-m0 (G0/C0/L0) or unicorn-arm (F1/F4/…).
+      // The .bin runs on the matching engine; serial + GPIO bridge to the UI.
+      if (
+        (buildResult.simCore === "unicorn-arm" || buildResult.simCore === "cortex-m0") &&
+        buildResult.bin
+      ) {
+        const { createStm32Runner, decodeFirmwareBin } = await import(
+          "@/lib/sim/create-stm32-runner"
+        );
+        if (runnerRef.current) runnerRef.current.stop();
+        const fw = decodeFirmwareBin(buildResult.bin);
+        const stm = await createStm32Runner(buildResult.simCore, fw);
+        stm.onSerialByte = (byte: number) =>
+          setSerialOutput((prev) => prev + String.fromCharCode(byte));
+        runnerRef.current = stm;
+        setFirmwareBin(buildResult.bin);
+        setFirmwareName(buildResult.firmware || "firmware.bin");
+        needsStartRef.current = true;
+        setRunner(stm);
+        setStatus("running");
         return;
       }
 
@@ -126,7 +149,7 @@ export function useSimulation({
       const msg = err instanceof Error ? err.message : String(err);
       setSerialOutput(`Error: ${msg}\n`);
     }
-  }, [diagram, sketchCode, projectId, projectFiles, board]);
+  }, [diagram, sketchCode, projectId, projectFiles, board, librariesTxt]);
 
   // Start execution after React renders and child effects (wiring) complete.
   // React runs child useEffects before parent useEffects, so DiagramCanvas's
@@ -135,7 +158,7 @@ export function useSimulation({
   useEffect(() => {
     if (!runner || !needsStartRef.current) return;
     needsStartRef.current = false;
-    runner.execute(() => {});
+    runner.execute?.(() => {});
   }, [runner]);
 
   const handleStop = useCallback(() => {
@@ -156,8 +179,8 @@ export function useSimulation({
 
   const handleResume = useCallback(() => {
     if (runnerRef.current) {
-      runnerRef.current.resume();
-      runnerRef.current.execute(() => {});
+      runnerRef.current.resume?.();
+      runnerRef.current.execute?.(() => {});
     }
     setStatus("running");
   }, []);

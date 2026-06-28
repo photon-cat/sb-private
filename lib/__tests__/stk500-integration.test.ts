@@ -18,7 +18,6 @@ import { flashArduino, getBaudRate, type FlashProgress } from "../stk500";
 import { loadHex } from "../intelhex";
 
 // Protocol constants
-const CRC_EOP = 0x20;
 const STK_OK = 0x10;
 const STK_INSYNC = 0x14;
 const Cmnd_STK_GET_SYNC = 0x30;
@@ -70,7 +69,7 @@ function createBootloaderMock(options: {
   // Addresses and page data received
   const receivedPages: Array<{ wordAddr: number; data: Uint8Array }> = [];
 
-  let readQueue: Uint8Array[] = [];
+  const readQueue: Uint8Array[] = [];
 
   const respond = (data: Uint8Array) => {
     readQueue.push(data);
@@ -161,7 +160,7 @@ function createBootloaderMock(options: {
   const signals: Array<Record<string, boolean>> = [];
 
   const port = {
-    open: vi.fn(async (opts: SerialOptions) => {
+    open: vi.fn(async () => {
       isOpen = true;
     }),
     close: vi.fn(async () => {

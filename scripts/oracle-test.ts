@@ -16,7 +16,7 @@
  *   - WOKWI_CLI_TOKEN environment variable (from wokwi.com/dashboard/ci)
  */
 
-import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync, readdirSync, copyFileSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync, readdirSync } from "fs";
 import { execFileSync, spawnSync } from "child_process";
 import path from "path";
 import os from "os";
@@ -28,14 +28,6 @@ import type { CustomChipConfig } from "../lib/chip-runtime";
 const ROOT = path.resolve(__dirname, "..");
 const PIO_CMD = path.join(os.homedir(), ".platformio-venv/bin/platformio");
 const WOKWI_CLI = path.join(os.homedir(), "bin/wokwi-cli");
-
-interface OracleResult {
-  sparkbenchSerial: string;
-  wokwiSerial: string;
-  match: boolean;
-  sparkbenchError?: string;
-  wokwiError?: string;
-}
 
 function usage(): never {
   console.error("Usage: npx tsx scripts/oracle-test.ts <slug> [--timeout <ms>]");

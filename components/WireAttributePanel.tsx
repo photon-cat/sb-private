@@ -31,11 +31,10 @@ export default function WireAttributePanel({
   onDelete,
   onClose,
 }: WireAttributePanelProps) {
-  const [fromRef, toRef, color] = connection;
-  const fromPart = fromRef.split(":")[0];
-  const fromPin = fromRef.split(":")[1] || "";
-  const toPart = toRef.split(":")[0];
-  const toPin = toRef.split(":")[1] || "";
+  const fromPart = connection.from.split(":")[0];
+  const fromPin = connection.from.split(":")[1] || "";
+  const toPart = connection.to.split(":")[0];
+  const toPin = connection.to.split(":")[1] || "";
 
   return (
     <div
@@ -88,9 +87,9 @@ export default function WireAttributePanel({
               style={{
                 width: 20, height: 20, borderRadius: 3,
                 background: wc.hex,
-                border: color === wc.name ? "2px solid #fff" : "2px solid transparent",
+                border: connection.color === wc.name ? "2px solid #fff" : "2px solid transparent",
                 cursor: "pointer",
-                outline: color === wc.name ? "1px solid #06f" : "none",
+                outline: connection.color === wc.name ? "1px solid #06f" : "none",
               }}
             />
           ))}

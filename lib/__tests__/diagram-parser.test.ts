@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDiagram, findMCUs, findComponentPins, type Diagram } from "../diagram-parser";
+import { parseDiagram, findMCUs, findComponentPins } from "../diagram-parser";
 
 describe("parseDiagram", () => {
   it("normalizes board-* aliases to wokwi-*", () => {

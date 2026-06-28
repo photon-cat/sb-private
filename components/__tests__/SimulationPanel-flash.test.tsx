@@ -46,7 +46,7 @@ vi.mock("../SerialMonitor", () => ({
 // Mock Tabs
 vi.mock("../Tabs", () => ({
   __esModule: true,
-  default: ({ tabs, activeId, onTabChange }: { tabs: { id: string; label: string }[]; activeId: string; onTabChange: (id: string) => void }) => (
+  default: ({ tabs, activeId: _activeId, onTabChange }: { tabs: { id: string; label: string }[]; activeId: string; onTabChange: (id: string) => void }) => (
     <div data-testid="tabs">
       {tabs.map((t) => (
         <button key={t.id} data-testid={`tab-${t.id}`} onClick={() => onTabChange(t.id)}>
@@ -61,7 +61,7 @@ const SAMPLE_HEX = ":04000000DEADBEEF9E\n:00000001FF\n";
 
 function defaultProps(overrides: Partial<Parameters<typeof SimulationPanel>[0]> = {}) {
   return {
-    diagram: { parts: [], connections: [] },
+    diagram: { version: 1, author: "", editor: "", parts: [], connections: [] },
     runner: null,
     status: "idle" as const,
     serialOutput: "",

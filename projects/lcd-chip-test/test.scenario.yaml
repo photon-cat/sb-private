@@ -1,0 +1,8 @@
+name: lcd-chip-test
+version: 1
+steps:
+  - wait-serial: "DONE"
+  - expect-display: { part-id: lcd, not-blank: true }
+  - expect-display: { part-id: lcd, min-filled: 90 }
+  - expect-display: { part-id: lcd, pixel: { x: 2, y: 2 } }
+  - expect-display: { part-id: lcd, pixel: { x: 8, y: 2 } }

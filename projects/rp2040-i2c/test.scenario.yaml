@@ -1,0 +1,6 @@
+name: RP2040 I2C device probe (SSD1306 @ 0x3C)
+version: 1
+steps:
+  # The SSD1306 model ACKs its address on I2C0, so Wire.endTransmission()
+  # returns 0 and the firmware lights the LED. A failed bridge would NACK → LOW.
+  - expect-pin: { pin: GP15, state: high, timeout: 2000 }

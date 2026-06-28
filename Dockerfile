@@ -44,7 +44,8 @@ ENV PLATFORMIO_CORE_DIR=/opt/platformio
 RUN apk add --no-cache python3 py3-pip gcompat libstdc++ && \
     python3 -m pip install --break-system-packages platformio && \
     platformio platform install atmelavr && \
-    platformio platform install espressif32
+    platformio platform install espressif32 && \
+    (platformio platform install ststm32 || echo "WARN: ststm32 platform unavailable on this arch")
 
 # Pre-install common Arduino libraries (matches Dockerfile.sandbox)
 # Install each individually so one missing package doesn't block the rest

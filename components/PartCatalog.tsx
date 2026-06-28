@@ -190,7 +190,7 @@ export default function PartCatalog({ onSelect, onClose }: PartCatalogProps) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    import("@wokwi/elements").then(() => { registerLogicGates(); setReady(true); });
+    import("@sparkbench/elements").then(() => { registerLogicGates(); setReady(true); });
   }, []);
 
   const filtered = useMemo(() => {

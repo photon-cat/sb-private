@@ -16,7 +16,7 @@ interface ProjectMeta {
 }
 
 function extractMeta(
-  project: typeof projects.$inferSelect,
+  project: { id: string; slug: string; diagramJson: unknown; fileManifest: unknown; updatedAt: Date },
   starCount: number = 0,
 ): ProjectMeta {
   let partCount = 0;
@@ -151,7 +151,7 @@ async function getDbProjects(request: Request) {
       .limit(limit)
       .offset(offset);
 
-    const metas: ProjectMeta[] = rows.map((row) => extractMeta(row as unknown as typeof projects.$inferSelect, row.starCount));
+    const metas: ProjectMeta[] = rows.map((row) => extractMeta(row, row.starCount));
 
     return NextResponse.json({ projects: metas, total, page, pages });
   } catch (err) {

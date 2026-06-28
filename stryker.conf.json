@@ -1,0 +1,24 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Targeted mutation testing for the component simulators ONLY. These modules encode hardware behavior (bit masks, register maps, protocol timing) where a subtle logic flip silently diverges from real hardware and a loose assertion would not notice. Run on-demand (npm run test:mutation), NOT on every PR. Scope is limited to simulator modules that have fast unit tests; the rest are covered by scenario tests that need the build toolchain and are not feasible per-mutant.",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.stryker.config.ts"
+  },
+  "mutate": [
+    "lib/hc595-sim.ts",
+    "lib/lcd1602-controller.ts",
+    "lib/chip-runtime.ts"
+  ],
+  "reporters": ["html", "clear-text", "progress"],
+  "htmlReporter": {
+    "fileName": "test-results/mutation/index.html"
+  },
+  "thresholds": {
+    "high": 80,
+    "low": 60,
+    "break": null
+  },
+  "concurrency": 4,
+  "timeoutMS": 30000
+}

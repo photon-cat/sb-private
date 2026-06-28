@@ -162,3 +162,81 @@ export function findChipFiles(
   }
   return results;
 }
+
+/** Verilog/SystemVerilog chip source extensions (compiled via Verilator). */
+const VERILOG_CHIP_EXTENSIONS = [".chip.sv", ".chip.v"];
+/** HDL source extensions not yet compilable (no Verilator path). */
+const HDL_CHIP_EXTENSIONS = [".chip.vhd", ".chip.vhdl"];
+
+export interface VerilogChipFileSet {
+  chipName: string;
+  /** Verilog/SystemVerilog source. */
+  source: string;
+  chipJson: ChipJsonDef;
+  partType: string;
+}
+
+/**
+ * Scan project files for Verilog chip pairs: <name>.chip.json + <name>.chip.(sv|v).
+ * These are compiled to WASM via Verilator (see lib/sim/verilog-chip-builder).
+ */
+export function findVerilogChipFiles(
+  projectFiles: { name: string; content: string }[],
+): VerilogChipFileSet[] {
+  const fileMap = new Map(projectFiles.map((f) => [f.name, f.content]));
+  const results: VerilogChipFileSet[] = [];
+  for (const file of projectFiles) {
+    if (!file.name.endsWith(".chip.json")) continue;
+    const baseName = file.name.replace(/\.chip\.json$/, "");
+    if (fileMap.has(`${baseName}.chip.c`)) continue; // C chip takes precedence
+    const ext = VERILOG_CHIP_EXTENSIONS.find((e) => fileMap.has(`${baseName}${e}`));
+    if (!ext) continue;
+    try {
+      results.push({
+        chipName: baseName,
+        source: fileMap.get(`${baseName}${ext}`)!,
+        chipJson: parseChipJson(file.content),
+        partType: chipPartType(baseName),
+      });
+    } catch {
+      /* skip malformed chip.json */
+    }
+  }
+  return results;
+}
+
+export interface UnsupportedChip {
+  chipName: string;
+  /** The HDL source file present (e.g. "counter.chip.sv"). */
+  sourceFile: string;
+  reason: string;
+}
+
+/**
+ * Detect chip definitions that use an authoring format we cannot compile yet
+ * (e.g. SystemVerilog/Verilog). These have a <name>.chip.json paired with an
+ * HDL source but no <name>.chip.c. Without this check such chips are silently
+ * ignored, so the caller should surface a warning.
+ */
+export function findUnsupportedChips(
+  projectFiles: { name: string; content: string }[],
+): UnsupportedChip[] {
+  const names = new Set(projectFiles.map((f) => f.name));
+  const out: UnsupportedChip[] = [];
+
+  for (const file of projectFiles) {
+    if (!file.name.endsWith(".chip.json")) continue;
+    const baseName = file.name.replace(/\.chip\.json$/, "");
+    if (names.has(`${baseName}.chip.c`)) continue; // compilable C chip — fine
+
+    const hdlExt = HDL_CHIP_EXTENSIONS.find((ext) => names.has(`${baseName}${ext}`));
+    if (hdlExt) {
+      out.push({
+        chipName: baseName,
+        sourceFile: `${baseName}${hdlExt}`,
+        reason: `HDL chips (${hdlExt}) are not yet supported — only C/WASM (.chip.c) chips compile. This chip will not be simulated.`,
+      });
+    }
+  }
+  return out;
+}

@@ -3,7 +3,6 @@ import { eq, desc, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { projects, projectStars } from "@/lib/db/schema";
 import { getServerSession } from "@/lib/auth-middleware";
-import { downloadFile } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 

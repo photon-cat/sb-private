@@ -32,7 +32,7 @@
  */
 
 import { chromium, type Page } from "@playwright/test";
-import { mkdirSync, writeFileSync, existsSync } from "fs";
+import { mkdirSync, writeFileSync } from "fs";
 import path from "path";
 
 // The list of community chips to extract. Each entry specifies:

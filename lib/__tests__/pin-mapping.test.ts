@@ -65,3 +65,19 @@ describe("mapAtmega328Pin", () => {
     expect(mapAtmega328Pin("")).toBeNull();
   });
 });
+
+import { mapRp2040Pin } from "../pin-mapping";
+describe("mapRp2040Pin", () => {
+  it("maps GP/GPIO/bare-number names to GPIO indices", () => {
+    expect(mapRp2040Pin("GP0")).toBe(0);
+    expect(mapRp2040Pin("GP25")).toBe(25);
+    expect(mapRp2040Pin("GPIO15")).toBe(15);
+    expect(mapRp2040Pin("5")).toBe(5);
+  });
+  it("rejects power/ground/out-of-range pins", () => {
+    expect(mapRp2040Pin("GND")).toBeNull();
+    expect(mapRp2040Pin("3V3")).toBeNull();
+    expect(mapRp2040Pin("VBUS")).toBeNull();
+    expect(mapRp2040Pin("GP30")).toBeNull();
+  });
+});

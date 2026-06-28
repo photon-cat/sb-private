@@ -40,7 +40,7 @@ function maybeCleanup() {
   }
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname, origin } = request.nextUrl;
 
   maybeCleanup();

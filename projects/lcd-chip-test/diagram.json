@@ -1,0 +1,12 @@
+{ "version": 1, "author": "test", "editor": "sparkbench",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0 },
+    { "type": "chip-charlcd", "id": "lcd", "top": -120, "left": 200, "attrs": {} }
+  ],
+  "connections": [
+    ["uno:10", "lcd:CS", "green", []],
+    ["uno:13", "lcd:SCK", "blue", []],
+    ["uno:11", "lcd:MOSI", "orange", []],
+    ["uno:12", "lcd:MISO", "purple", []]
+  ]
+}

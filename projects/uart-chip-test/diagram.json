@@ -1,0 +1,10 @@
+{ "version": 1, "author": "test", "editor": "sparkbench",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0 },
+    { "type": "chip-echo", "id": "chip1", "top": -120, "left": 200, "attrs": {} }
+  ],
+  "connections": [
+    ["uno:1", "chip1:RX", "green", []],
+    ["uno:0", "chip1:TX", "blue", []]
+  ]
+}

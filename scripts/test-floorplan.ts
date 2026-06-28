@@ -524,7 +524,7 @@ ${diagramContent}
           turnCount++;
           for (const block of msg.message.content) {
             if (block.type === "tool_use") {
-              let name = block.name
+              const name = block.name
                 .replace("mcp__sparkbench__", "")
                 .replace("mcp__deeppcb__", "DeepPCB:");
               const input = block.input as Record<string, any>;

@@ -167,10 +167,6 @@ async function getSandboxStats() {
       }
     }
 
-    // Get volume sizes
-    const volResult = await exec("docker", [
-      "system", "df", "-v", "--format", "{{.Name}}\t{{.Size}}",
-    ]);
     // docker system df -v doesn't support --format well, fall back to volume ls
     const volLsResult = await exec("docker", [
       "volume", "ls", "--filter", "name=sb-", "--format", "{{.Name}}",

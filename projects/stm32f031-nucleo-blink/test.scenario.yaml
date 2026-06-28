@@ -1,0 +1,6 @@
+name: STM32 Nucleo-F031K6 blink (LD3 / PB3)
+version: 1
+steps:
+  - expect-pin: { pin: PB3, state: high, timeout: 3000 }
+  - expect-pin: { pin: PB3, state: low, timeout: 3000 }
+  - expect-pin: { pin: PB3, state: high, timeout: 3000 }

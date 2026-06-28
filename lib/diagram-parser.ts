@@ -12,8 +12,16 @@ export interface DiagramPart {
   pcbRotation?: number;
 }
 
-// Each connection: [fromPin, toPin, color, routingHints]
-export type DiagramConnection = [string, string, string, string[]];
+export interface DiagramConnection {
+  from: string;
+  to: string;
+  color: string;
+  hints: string[];
+}
+
+type RawDiagramConnection =
+  | DiagramConnection
+  | [string, string, string?, string[]?];
 
 export interface DiagramLabel {
   id: string;
@@ -51,16 +59,18 @@ function normalizePartType(type: string): string {
 }
 
 /** MCU part type → metadata for simulation. */
+export type PinStyle = "arduino" | "avr-port" | "stm32-port" | "rp2040";
+
 export interface MCUInfo {
   id: string;           // part id from diagram (e.g. "uno", "u1")
   type: string;         // part type (e.g. "wokwi-arduino-uno")
   boardId: string;      // PlatformIO board env name
-  pinStyle: "arduino" | "avr-port";
+  pinStyle: PinStyle;
   label: string;
-  simulatable: boolean; // true if avr8js can run this chip
+  simulatable: boolean; // true if the browser emulator can run this chip
 }
 
-const MCU_REGISTRY: Record<string, { boardId: string; pinStyle: "arduino" | "avr-port"; label: string; simulatable: boolean }> = {
+const MCU_REGISTRY: Record<string, { boardId: string; pinStyle: PinStyle; label: string; simulatable: boolean }> = {
   // AVR boards
   "wokwi-arduino-uno":   { boardId: "uno",        pinStyle: "arduino",   label: "Arduino Uno",   simulatable: true },
   "wokwi-arduino-nano":  { boardId: "uno",        pinStyle: "arduino",   label: "Arduino Nano",  simulatable: true },
@@ -71,6 +81,12 @@ const MCU_REGISTRY: Record<string, { boardId: string; pinStyle: "arduino" | "avr
   "sb-esp32":               { boardId: "esp32dev",             pinStyle: "arduino", label: "ESP32",             simulatable: false },
   "sb-esp32-s3":            { boardId: "esp32-s3-devkitc-1",  pinStyle: "arduino", label: "ESP32-S3",          simulatable: false },
   "sb-esp32-c3":            { boardId: "esp32-c3-devkitm-1",  pinStyle: "arduino", label: "ESP32-C3",          simulatable: false },
+  // STM32 boards
+  "sb-stm32-bluepill":      { boardId: "bluepill_f103c8",      pinStyle: "stm32-port", label: "STM32F103 Blue Pill", simulatable: true },
+  "sb-stm32f103":           { boardId: "bluepill_f103c8",      pinStyle: "stm32-port", label: "STM32F103C8",         simulatable: true },
+  // RP2040 boards (Raspberry Pi Pico) — emulated via rp2040js (see lib/rp2040-runner.ts)
+  "wokwi-pi-pico":          { boardId: "pico",  pinStyle: "rp2040", label: "Raspberry Pi Pico", simulatable: true },
+  "sb-rp2040":              { boardId: "pico",  pinStyle: "rp2040", label: "RP2040",            simulatable: true },
 };
 
 /**
@@ -101,11 +117,27 @@ export function parseDiagram(json: unknown): Diagram {
       value: p.value,
       footprint: p.footprint,
     })),
-    connections: d.connections ?? [],
+    connections: normalizeConnections(d.connections ?? []),
     labels: d.labels ?? [],
     serialMonitor: d.serialMonitor,
     boardSize: d.boardSize,
   };
+}
+
+export function normalizeConnection(c: RawDiagramConnection): DiagramConnection {
+  if (Array.isArray(c)) {
+    return { from: c[0], to: c[1], color: c[2] ?? "green", hints: c[3] ?? [] };
+  }
+  return {
+    from: c.from,
+    to: c.to,
+    color: c.color ?? "green",
+    hints: c.hints ?? [],
+  };
+}
+
+export function normalizeConnections(connections: RawDiagramConnection[]): DiagramConnection[] {
+  return connections.map(normalizeConnection);
 }
 
 /**
@@ -128,17 +160,15 @@ export function findComponentPins(
 
   // Step 1: Direct MCU connections
   for (const conn of diagram.connections) {
-    const [a, b] = conn;
-
     let mcuPin: string | null = null;
     let componentId: string | null = null;
 
-    if (a.startsWith(`${mcuId}:`)) {
-      mcuPin = a.split(":")[1];
-      componentId = b.split(":")[0];
-    } else if (b.startsWith(`${mcuId}:`)) {
-      mcuPin = b.split(":")[1];
-      componentId = a.split(":")[0];
+    if (conn.from.startsWith(`${mcuId}:`)) {
+      mcuPin = conn.from.split(":")[1];
+      componentId = conn.to.split(":")[0];
+    } else if (conn.to.startsWith(`${mcuId}:`)) {
+      mcuPin = conn.to.split(":")[1];
+      componentId = conn.from.split(":")[0];
     }
 
     if (!mcuPin || !componentId) continue;
@@ -156,9 +186,8 @@ export function findComponentPins(
   while (changed) {
     changed = false;
     for (const conn of diagram.connections) {
-      const [a, b] = conn;
-      const aId = a.split(":")[0];
-      const bId = b.split(":")[0];
+      const aId = conn.from.split(":")[0];
+      const bId = conn.to.split(":")[0];
 
       if (aId === mcuId || bId === mcuId) continue;
 

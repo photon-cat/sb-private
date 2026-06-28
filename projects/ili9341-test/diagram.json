@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "author": "test",
+  "editor": "sparkbench",
+  "parts": [
+    {
+      "type": "wokwi-arduino-uno",
+      "id": "uno",
+      "top": 0,
+      "left": 0
+    },
+    {
+      "type": "wokwi-ili9341",
+      "id": "tft",
+      "top": -150,
+      "left": 220,
+      "attrs": {
+        "width": "120",
+        "height": "80"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "uno:10",
+      "tft:CS",
+      "green",
+      []
+    ],
+    [
+      "uno:9",
+      "tft:DC",
+      "yellow",
+      []
+    ],
+    [
+      "uno:13",
+      "tft:SCK",
+      "blue",
+      []
+    ],
+    [
+      "uno:11",
+      "tft:MOSI",
+      "orange",
+      []
+    ]
+  ]
+}

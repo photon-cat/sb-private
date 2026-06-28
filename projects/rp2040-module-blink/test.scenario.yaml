@@ -1,0 +1,6 @@
+name: RP2040 module (wokwi-rp2040) blink
+version: 1
+steps:
+  - expect-pin: { pin: GP15, state: high, timeout: 3000 }
+  - expect-pin: { pin: GP15, state: low, timeout: 3000 }
+  - expect-pin: { pin: GP15, state: high, timeout: 3000 }

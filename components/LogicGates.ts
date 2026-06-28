@@ -528,7 +528,6 @@ function usbcSvg(): string {
   const bw = w - 1.6 * UNIT;
   const by = 0.3 * UNIT;
   const bh = h - 0.6 * UNIT;
-  const stubLen = 0.8 * UNIT;
   let s = `<svg width="${w}" height="${h}" style="overflow:visible" xmlns="http://www.w3.org/2000/svg">`;
   // Body
   s += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="3" fill="#3a3d42" stroke="${STROKE}" stroke-width="${STROKE_W}"/>`;

@@ -23,14 +23,14 @@
  *     { "type": "error", "message": "..." }
  */
 
-import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from "fs";
 import { execFileSync } from "child_process";
 import path from "path";
 import os from "os";
 import { WebSocketServer, WebSocket } from "ws";
 import { parseDiagram, findMCUs } from "../lib/diagram-parser";
 import { AVRRunner } from "../lib/avr-runner";
-import { wireComponents, cleanupWiring, WiredComponent } from "../lib/wire-components";
+import { wireComponents, cleanupWiring } from "../lib/wire-components";
 
 const ROOT = path.resolve(__dirname, "..");
 const BUILD_DIR = path.join(ROOT, "_build");
@@ -127,7 +127,7 @@ const { wired } = wireComponents(runner, diagram);
 
 // Capture serial output
 let serialBuffer = "";
-let serialLines: string[] = [];
+const serialLines: string[] = [];
 runner.usart.onByteTransmit = (byte: number) => {
   const ch = String.fromCharCode(byte);
   serialBuffer += ch;

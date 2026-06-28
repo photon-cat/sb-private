@@ -8,7 +8,7 @@ import path from "path";
 const PROJECTS_DIR = path.join(process.cwd(), "projects");
 
 export function isLocalDev(): boolean {
-  return !process.env.DATABASE_URL;
+  return process.env.SPARKBENCH_LOCAL_DEV === "1" || !process.env.DATABASE_URL;
 }
 
 export interface LocalProjectMeta {

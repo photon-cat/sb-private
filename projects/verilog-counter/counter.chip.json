@@ -1,0 +1,1 @@
+{ "name": "counter", "author": "test", "pins": ["clk", "rst", "q0", "q1", "q2", "q3"] }

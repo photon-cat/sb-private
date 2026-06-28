@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, writeFile, rm, readdir } from "fs/promises";
+import { mkdir, writeFile, rm } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 
@@ -21,16 +21,19 @@ describe("Projects API routes", () => {
   afterEach(cleanup);
 
   describe("GET /api/projects", () => {
-    it("returns project list as JSON array", async () => {
+    it("returns paginated project list", async () => {
       const { GET } = await import("../../api/projects/route");
-      const response = await GET();
+      const response = await GET(new Request("http://localhost/api/projects"));
       const data = await response.json();
 
-      expect(Array.isArray(data)).toBe(true);
+      expect(Array.isArray(data.projects)).toBe(true);
+      expect(data).toHaveProperty("total");
+      expect(data).toHaveProperty("page");
+      expect(data).toHaveProperty("pages");
       // Should have at least a few projects from the repo
-      expect(data.length).toBeGreaterThan(0);
+      expect(data.projects.length).toBeGreaterThan(0);
       // Each project should have expected fields
-      const first = data[0];
+      const first = data.projects[0];
       expect(first).toHaveProperty("slug");
       expect(first).toHaveProperty("partCount");
       expect(first).toHaveProperty("lineCount");

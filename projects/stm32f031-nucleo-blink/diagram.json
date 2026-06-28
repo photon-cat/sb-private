@@ -1,0 +1,11 @@
+{
+  "version": 1, "author": "SparkBench", "editor": "wokwi",
+  "parts": [
+    { "id": "mcu", "type": "wokwi-stm32-nucleo-f031k6", "top": 0, "left": 0, "attrs": {} },
+    { "id": "led1", "type": "wokwi-led", "top": 0, "left": 200, "attrs": { "color": "green" } }
+  ],
+  "connections": [
+    [ "mcu:PB3", "led1:A", "green", [] ],
+    [ "led1:C", "mcu:GND", "black", [] ]
+  ]
+}

@@ -3,7 +3,7 @@
 import { PinState, type TWIEventHandler } from "avr8js";
 import type { AVRRunnerLike, PinInfo } from "./pin-mapping";
 import { getPort } from "./pin-mapping";
-import type { Diagram } from "./diagram-parser";
+import { normalizeConnection, type Diagram } from "./diagram-parser";
 import type { I2CBus } from "./i2c-bus";
 
 // Wokwi pin modes (from wokwi-api.h)
@@ -50,17 +50,121 @@ interface ChipAttribute {
   isFloat: boolean;
   /** Current value — float (voltage/coefficient) for float attrs, int otherwise. */
   value: number;
+  /** String value for string attrs (attr_string_init). */
+  stringValue?: string;
+}
+
+interface ChipSpiDevice {
+  id: number;
+  userData: number;
+  donePtr: number;
+  /** Armed transfer state (set by spi_start, cleared on completion / spi_stop). */
+  armed: boolean;
+  bufferPtr: number;
+  count: number;
+  index: number;
+  /** The bytes currently in the transfer buffer (MISO out, overwritten with MOSI in). */
+  bytes: number[];
+}
+
+interface ChipUartDevice {
+  id: number;
+  userData: number;
+  rxDataPtr: number;
+  writeDonePtr: number;
+  /** True when this UART is bridged to the MCU hardware USART. */
+  bridged: boolean;
+}
+
+interface ChipFramebuffer {
+  id: number;
+  width: number;
+  height: number;
+  /** RGBA pixel data, width*height*4 bytes. */
+  pixels: Uint8Array;
 }
 
 export interface ChipJsonDef {
   name: string;
   pins: string[];
   controls?: { id: string; label: string; type: string; min: number; max: number; step: number }[];
+  /** Display config — framebuffer dimensions for chips that render pixels. */
+  display?: { type?: string; width?: number; height?: number };
 }
 
 export interface CustomChipConfig {
   chipJson: ChipJsonDef;
   wasmBytes: ArrayBuffer;
+}
+
+interface WasmMemorySpec {
+  shared: boolean;
+  initial: number;
+  maximum?: number;
+}
+
+/**
+ * Parse the imported memory's limits from a WASM module's import section.
+ * Needed to detect a SHARED memory import (Verilog/Verilator chips) so we can
+ * instantiate a matching `WebAssembly.Memory({ shared: true })`. Returns null
+ * if the module imports no memory.
+ */
+export function parseWasmMemoryImport(bytes: ArrayBuffer): WasmMemorySpec | null {
+  const buf = new Uint8Array(bytes);
+  let p = 0;
+  const u32 = () => (buf[p++] | (buf[p++] << 8) | (buf[p++] << 16) | (buf[p++] << 24)) >>> 0;
+  if (buf.length < 8 || u32() !== 0x6d736100) return null; // "\0asm"
+  u32(); // version
+
+  const leb = (): number => {
+    let result = 0, shift = 0, b: number;
+    do {
+      b = buf[p++];
+      result |= (b & 0x7f) << shift;
+      shift += 7;
+    } while (b & 0x80);
+    return result >>> 0;
+  };
+  const skipName = () => {
+    const len = leb();
+    p += len;
+  };
+
+  while (p < buf.length) {
+    const id = buf[p++];
+    const size = leb();
+    const end = p + size;
+    if (id === 2) {
+      // Import section
+      const count = leb();
+      for (let i = 0; i < count; i++) {
+        skipName(); // module
+        skipName(); // field
+        const kind = buf[p++];
+        if (kind === 0x00) {
+          leb(); // function: typeidx
+        } else if (kind === 0x01) {
+          // table: elemtype + limits
+          p++; // elemtype
+          const flags = buf[p++];
+          leb();
+          if (flags & 0x01) leb();
+        } else if (kind === 0x02) {
+          // memory: limits flags + min (+ max)
+          const flags = buf[p++];
+          const initial = leb();
+          const maximum = flags & 0x01 ? leb() : undefined;
+          return { shared: (flags & 0x02) !== 0, initial, maximum };
+        } else if (kind === 0x03) {
+          p++; // global: valtype
+          p++; // mutability
+        }
+      }
+      return null; // import section had no memory
+    }
+    p = end;
+  }
+  return null;
 }
 
 /**
@@ -73,17 +177,17 @@ function findPartConnections(
 ): Map<string, string[]> {
   const map = new Map<string, string[]>();
   const prefix = `${partId}:`;
-  for (const conn of diagram.connections) {
-    const [a, b] = conn;
-    if (a.startsWith(prefix)) {
-      const pinName = a.slice(prefix.length);
+  for (const rawConn of diagram.connections) {
+    const conn = normalizeConnection(rawConn);
+    if (conn.from.startsWith(prefix)) {
+      const pinName = conn.from.slice(prefix.length);
       const list = map.get(pinName) || [];
-      list.push(b);
+      list.push(conn.to);
       map.set(pinName, list);
-    } else if (b.startsWith(prefix)) {
-      const pinName = b.slice(prefix.length);
+    } else if (conn.to.startsWith(prefix)) {
+      const pinName = conn.to.slice(prefix.length);
       const list = map.get(pinName) || [];
-      list.push(a);
+      list.push(conn.from);
       map.set(pinName, list);
     }
   }
@@ -104,6 +208,11 @@ export class CustomChipRuntime {
   private i2cAddresses: number[] = [];
   /** Monotonic ID handed back to the chip from i2c_init. */
   private nextI2cId = 0;
+  private spiDevices: ChipSpiDevice[] = [];
+  private uartDevices: ChipUartDevice[] = [];
+  private framebuffers: ChipFramebuffer[] = [];
+  /** Restores runner.spi.onByte / usart.onByteTransmit on dispose. */
+  private cleanupBridges: (() => void)[] = [];
   private partConnections: Map<string, string[]>;
   private consoleBuffer = "";
   private onConsoleOutput?: (text: string) => void;
@@ -139,6 +248,19 @@ export class CustomChipRuntime {
 
   /** Instantiate WASM module and call chipInit() */
   async init(): Promise<void> {
+    // Verilog/Verilator-derived chips link the threaded Verilator runtime and
+    // import a SHARED memory. Match the module's memory import (shared + bounds)
+    // so it instantiates; on our single thread the mutexes never contend and
+    // wasi thread-spawn is never invoked.
+    const memSpec = parseWasmMemoryImport(this.config.wasmBytes);
+    if (memSpec?.shared) {
+      this.memory = new WebAssembly.Memory({
+        initial: memSpec.initial,
+        maximum: memSpec.maximum ?? memSpec.initial,
+        shared: true,
+      });
+    }
+
     const imports = this.buildImports();
     const { instance } = await WebAssembly.instantiate(
       this.config.wasmBytes,
@@ -160,22 +282,42 @@ export class CustomChipRuntime {
     for (const pin of this.pins) {
       pin.removeListener?.();
     }
+    for (const restore of this.cleanupBridges) restore();
+    this.cleanupBridges = [];
     this.pins = [];
     this.timers = [];
+    this.spiDevices = [];
+    this.uartDevices = [];
+    this.framebuffers = [];
     this.instance = null;
+  }
+
+  /** Read the latest framebuffer (for display rendering / tests). */
+  getFramebuffer(id = 0): ChipFramebuffer | undefined {
+    return this.framebuffers[id];
   }
 
   private get table(): WebAssembly.Table | null {
     return (this.instance?.exports.__indirect_function_table as WebAssembly.Table) ?? null;
   }
 
+  /** Invoke a function pointer from the WASM indirect function table. */
+  private callTableFn(ptr: number, ...args: number[]): unknown {
+    if (!ptr) return undefined;
+    const table = this.table;
+    if (!table) return undefined;
+    const fn = table.get(ptr) as ((...a: number[]) => unknown) | null;
+    return fn ? fn(...args) : undefined;
+  }
+
   /** Read a null-terminated C string from WASM memory */
   private readCString(ptr: number): string {
-    const mem = this.memory;
-    const buf = new Uint8Array(mem.buffer);
+    const buf = new Uint8Array(this.memory.buffer);
     let end = ptr;
     while (end < buf.length && buf[end] !== 0) end++;
-    return new TextDecoder().decode(buf.subarray(ptr, end));
+    // .slice() copies out of a (possibly shared) buffer — TextDecoder rejects
+    // views backed by SharedArrayBuffer, which Verilog chips use.
+    return new TextDecoder().decode(buf.slice(ptr, end));
   }
 
   /**
@@ -184,11 +326,16 @@ export class CustomChipRuntime {
    * caller can fall back to the C-supplied default.
    */
   private readPersistedAttr(name: string): number | undefined {
-    const part = this.diagram.parts.find((p) => p.id === this.partId);
-    const raw = part?.attrs?.[name];
+    const raw = this.readPersistedAttrRaw(name);
     if (raw === undefined) return undefined;
     const num = parseFloat(raw);
     return Number.isNaN(num) ? undefined : num;
+  }
+
+  /** Raw (unparsed) persisted attribute string from the diagram's part.attrs. */
+  private readPersistedAttrRaw(name: string): string | undefined {
+    const part = this.diagram.parts.find((p) => p.id === this.partId);
+    return part?.attrs?.[name];
   }
 
   /** Resolve a custom chip pin name to the MCU pin it's connected to */
@@ -424,8 +571,6 @@ export class CustomChipRuntime {
         },
 
         timerStartNanos(timerId: number, nanos: number, repeat: number): void {
-          // nanos comes as f64, convert to micros and delegate
-          const micros = nanos / 1000;
           const timer = self.timers[timerId];
           if (!timer) return;
           timer.active = true;
@@ -462,10 +607,11 @@ export class CustomChipRuntime {
           return self.readChipPinVoltage(pin.name);
         },
 
-        pinDACWrite(pinId: number, voltage: number): void {
+        pinDACWrite(pinId: number, voltage: number): number {
           const pin = self.pins[pinId];
-          if (!pin) return;
+          if (!pin) return 0;
           self.writeChipPinVoltage(pin.name, voltage);
+          return voltage; // ABI: float pin_dac_write(pin, float)
         },
 
         // --- Attributes ---
@@ -504,9 +650,31 @@ export class CustomChipRuntime {
           return a ? a.value : 0;
         },
 
-        attrStringInit: stub,
-        stringGetLength: stub,
-        stringRead: stub,
+        // String attributes — attr_string_init(name) returns a string_t handle
+        // (we reuse the attr id). string_get_length / string_read operate on it.
+        attrStringInit(namePtr: number): number {
+          const name = self.readCString(namePtr);
+          const id = self.attrs.length;
+          const value = self.readPersistedAttrRaw(name) ?? "";
+          self.attrs.push({ id, name, isFloat: false, value: 0, stringValue: value });
+          return id;
+        },
+
+        stringGetLength(stringId: number): number {
+          const a = self.attrs[stringId];
+          if (!a?.stringValue) return 0;
+          return new TextEncoder().encode(a.stringValue).length;
+        },
+
+        stringRead(stringId: number, bufPtr: number, bufferSize: number): number {
+          const a = self.attrs[stringId];
+          if (!a?.stringValue) return 0;
+          const bytes = new TextEncoder().encode(a.stringValue);
+          const n = Math.min(bytes.length, Math.max(0, bufferSize));
+          const mem = new Uint8Array(self.memory.buffer);
+          for (let i = 0; i < n; i++) mem[bufPtr + i] = bytes[i];
+          return n;
+        },
 
         // --- I2C ---
         // Reads the i2c_config_t struct from WASM memory, builds a
@@ -586,19 +754,176 @@ export class CustomChipRuntime {
         i2cConfig: stub,   // advanced config (rarely used)
         i2cStatus: stub,   // read bus status
 
-        // --- SPI (stubs for Phase 1) ---
-        spiInit: stub,
-        spiStart: stub,
-        spiStop: stub,
+        // --- SPI ---
+        // spi_config_t layout (wasm32): user_data@0, sck@4, mosi@8, miso@12,
+        //   mode@16, done(user_data, buffer, count)@20, reserved[8]@24.
+        // The chip is an SPI slave; the AVR is master. When the master clocks a
+        // byte (runner.spi.onByte), the armed chip returns its buffer byte as
+        // MISO and records the received MOSI byte. After `count` bytes the chip's
+        // `done` callback fires with the buffer now holding received data.
+        spiInit(configPtr: number): number {
+          const view = new DataView(self.memory.buffer);
+          const userData = view.getUint32(configPtr + 0, true);
+          const donePtr = view.getUint32(configPtr + 20, true);
+          const id = self.spiDevices.length;
+          const dev: ChipSpiDevice = {
+            id,
+            userData,
+            donePtr,
+            armed: false,
+            bufferPtr: 0,
+            count: 0,
+            index: 0,
+            bytes: [],
+          };
+          self.spiDevices.push(dev);
 
-        // --- UART (stubs for Phase 1) ---
-        uartInit: stub,
-        uartWrite: stub,
+          // Chain onto the existing SPI byte handler so multiple SPI chips can
+          // coexist: the armed device responds, otherwise we delegate down the
+          // chain (ultimately to avr8js's default which idles MISO high).
+          const prev = self.runner.spi.onByte;
+          const handler = (mosi: number) => {
+            if (dev.armed) {
+              const miso = dev.bytes[dev.index] ?? 0;
+              self.runner.spi.completeTransfer(miso);
+              dev.bytes[dev.index] = mosi & 0xff; // record received MOSI
+              dev.index++;
+              if (dev.index >= dev.count) {
+                // Write received bytes back into WASM memory, then call done().
+                const mem = new Uint8Array(self.memory.buffer);
+                for (let i = 0; i < dev.count; i++) {
+                  mem[dev.bufferPtr + i] = dev.bytes[i] & 0xff;
+                }
+                dev.armed = false;
+                self.callTableFn(dev.donePtr, dev.userData, dev.bufferPtr, dev.count);
+              }
+            } else {
+              prev(mosi);
+            }
+          };
+          self.runner.spi.onByte = handler;
+          self.cleanupBridges.push(() => {
+            // Best-effort restore (only valid if no later chip re-chained).
+            if (self.runner.spi.onByte === handler) self.runner.spi.onByte = prev;
+          });
+          return id;
+        },
 
-        // --- Framebuffer (stubs for Phase 1) ---
-        framebufferInit: stub,
-        bufferRead: stub,
-        bufferWrite: stub,
+        spiStart(spiId: number, bufferPtr: number, count: number): void {
+          const dev = self.spiDevices[spiId];
+          if (!dev) return;
+          const mem = new Uint8Array(self.memory.buffer);
+          dev.bufferPtr = bufferPtr;
+          dev.count = count;
+          dev.index = 0;
+          dev.bytes = [];
+          for (let i = 0; i < count; i++) dev.bytes.push(mem[bufferPtr + i]);
+          dev.armed = true;
+        },
+
+        spiStop(spiId: number): void {
+          const dev = self.spiDevices[spiId];
+          if (dev) dev.armed = false;
+        },
+
+        // --- UART ---
+        // uart_config_t layout: user_data@0, rx@4, tx@8, baud_rate@12,
+        //   rx_data(user_data, byte)@16, write_done(user_data)@20, reserved[8]@24.
+        // Bridged to the MCU hardware USART when the chip's rx/tx pins connect to
+        // the MCU serial pins: MCU TX -> chip rx_data; chip uart_write -> MCU RX.
+        uartInit(configPtr: number): number {
+          const view = new DataView(self.memory.buffer);
+          const userData = view.getUint32(configPtr + 0, true);
+          const rxPinId = view.getInt32(configPtr + 4, true);
+          const txPinId = view.getInt32(configPtr + 8, true);
+          const rxDataPtr = view.getUint32(configPtr + 16, true);
+          const writeDonePtr = view.getUint32(configPtr + 20, true);
+          const id = self.uartDevices.length;
+
+          // Only bridge to the MCU hardware USART when the chip's UART pins are
+          // wired to the MCU serial pins (D0=RX/PD0, D1=TX/PD1). The chip's rx
+          // receives the MCU's transmissions (so it should connect to MCU TX/PD1);
+          // the chip's tx feeds the MCU's receiver (MCU RX/PD0). Otherwise the
+          // device is registered but inert (software-serial bridging is future work).
+          const rxPin = self.pins[rxPinId]?.pinInfo;
+          const txPin = self.pins[txPinId]?.pinInfo;
+          const onMcuTx = (p?: PinInfo | null) => p?.port === "portD" && p.pin === 1;
+          const onMcuRx = (p?: PinInfo | null) => p?.port === "portD" && p.pin === 0;
+          const bridged = onMcuTx(rxPin) || onMcuRx(txPin);
+
+          const dev: ChipUartDevice = { id, userData, rxDataPtr, writeDonePtr, bridged };
+          self.uartDevices.push(dev);
+          if (!bridged) return id;
+
+          // Bridge MCU USART transmit -> this chip's rx_data callback, chaining
+          // the existing onByteTransmit so serial capture keeps working.
+          const prev = self.runner.usart.onByteTransmit;
+          const handler = (byte: number) => {
+            prev?.(byte);
+            self.callTableFn(dev.rxDataPtr, dev.userData, byte & 0xff);
+          };
+          self.runner.usart.onByteTransmit = handler;
+          self.cleanupBridges.push(() => {
+            if (self.runner.usart.onByteTransmit === handler) {
+              self.runner.usart.onByteTransmit = prev;
+            }
+          });
+          return id;
+        },
+
+        uartWrite(uartId: number, bufferPtr: number, count: number): number {
+          const dev = self.uartDevices[uartId];
+          if (!dev || !dev.bridged) return 0;
+          const mem = new Uint8Array(self.memory.buffer);
+          for (let i = 0; i < count; i++) {
+            self.runner.usart.writeByte(mem[bufferPtr + i]);
+          }
+          // Signal write completion back to the chip.
+          self.callTableFn(dev.writeDonePtr, dev.userData);
+          return 1; // success
+        },
+
+        // --- Framebuffer ---
+        // framebuffer_init(uint32_t *pixel_width, uint32_t *pixel_height) — per
+        // the Wokwi ABI the SIMULATOR fills the dimensions (from the chip.json
+        // `display` config) into the pointers and returns an RGBA buffer of
+        // width*height*4 bytes. If chip.json omits the size we fall back to any
+        // value the chip pre-wrote into the pointers.
+        framebufferInit(widthPtr: number, heightPtr: number): number {
+          const view = new DataView(self.memory.buffer);
+          const disp = self.config.chipJson.display;
+          const width = disp?.width ?? view.getUint32(widthPtr, true) ?? 0;
+          const height = disp?.height ?? view.getUint32(heightPtr, true) ?? 0;
+          // Provide the dimensions back to the chip.
+          view.setUint32(widthPtr, width, true);
+          view.setUint32(heightPtr, height, true);
+          const id = self.framebuffers.length;
+          self.framebuffers.push({
+            id,
+            width,
+            height,
+            pixels: new Uint8Array(Math.max(0, width * height * 4)),
+          });
+          return id;
+        },
+
+        bufferRead(bufferId: number, offset: number, dataPtr: number, dataLen: number): void {
+          const fb = self.framebuffers[bufferId];
+          if (!fb) return;
+          const mem = new Uint8Array(self.memory.buffer);
+          for (let i = 0; i < dataLen; i++) {
+            mem[dataPtr + i] = fb.pixels[offset + i] ?? 0;
+          }
+        },
+
+        bufferWrite(bufferId: number, offset: number, dataPtr: number, dataLen: number): void {
+          const fb = self.framebuffers[bufferId];
+          if (!fb) return;
+          const mem = new Uint8Array(self.memory.buffer);
+          for (let i = 0; i < dataLen; i++) {
+            if (offset + i < fb.pixels.length) fb.pixels[offset + i] = mem[dataPtr + i];
+          }
+        },
 
         // --- Experimental MCU access (stubs) ---
         _symbolResolve: stub,
@@ -618,7 +943,7 @@ export class CustomChipRuntime {
           for (let i = 0; i < iovsLen; i++) {
             const ptr = view.getUint32(iovsPtr + i * 8, true);
             const len = view.getUint32(iovsPtr + i * 8 + 4, true);
-            const text = new TextDecoder().decode(buf.subarray(ptr, ptr + len));
+            const text = new TextDecoder().decode(buf.slice(ptr, ptr + len));
             self.consoleBuffer += text;
             totalWritten += len;
           }
@@ -650,8 +975,8 @@ export class CustomChipRuntime {
         clock_time_get: (clockId: number, _precision: bigint, ptr: number): number => {
           const view = new DataView(self.memory.buffer);
           // Return current time in nanoseconds
-          const nanos = BigInt(Date.now()) * 1_000_000n;
-          view.setBigUint64(ptr, nanos, true);
+          const nanos = BigInt(Date.now()) * BigInt(1_000_000);
+          (view as any).setBigUint64(ptr, nanos, true);
           return 0;
         },
         proc_exit: stub,
@@ -669,6 +994,15 @@ export class CustomChipRuntime {
           view.setUint32(sizePtr, 0, true);
           return 0;
         },
+        // Threaded Verilator runtime cooperatively yields; we're single-threaded.
+        sched_yield: () => 0,
+      },
+
+      // Threaded (Verilog/Verilator) chips link wasi thread-spawn. We never
+      // spawn — Verilator runs single-threaded here — so this is a stub that
+      // reports failure; it is never actually invoked at runtime.
+      wasi: {
+        "thread-spawn": () => -1,
       },
     };
   }
@@ -707,6 +1041,7 @@ export async function wireCustomChipsAsync(
     runtimes.set(part.id, runtime);
 
     const wc = wired.get(part.id) || { part };
+    wc.chipRuntime = runtime;
     const prevCleanup = wc.cleanup;
     wc.cleanup = () => {
       prevCleanup?.();

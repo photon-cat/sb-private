@@ -1,5 +1,5 @@
 /**
- * Generic DIP IC chip rendering for components not in @wokwi/elements.
+ * Generic DIP IC chip rendering for components not in @sparkbench/elements.
  * Pin positions are grid-aligned (multiples of UNIT_PX = 9.6).
  */
 

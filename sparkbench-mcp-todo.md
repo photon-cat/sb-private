@@ -1,5 +1,23 @@
 # SparkBench MCP Server — Build Plan
 
+> **STATUS (built):** The core server is implemented and verified — see
+> [`docs/mcp.md`](docs/mcp.md). Delivered: `lib/sim/sim-session.ts` (built on the
+> multi-MCU `HeadlessMcu`, not AVR-only as the plan below assumed),
+> `scripts/sparkbench-mcp.ts` (15 tools + project-file resources + the
+> `sparkbench_explore` prompt), the `sparkbench mcp` subcommand,
+> `lib/sim/controls.ts` (set-control mapping shared with the scenario runner),
+> `lib/__tests__/sim-session.test.ts` (8 tests), and `scripts/mcp-smoke-test.ts`
+> (`npm run mcp:smoke-test`, `--full` for the compile+screenshot flow).
+> `oracle_compare` is wired (Phase 5) and verified end-to-end through MCP
+> (cd4051-mux → match:true); `read_pin` matches Wokwi's `{partId, pin}` while
+> still accepting a board-native pin. `compile_chip` (lib/sim/chip-compiler.ts,
+> C via wokwi-cli + Verilog via Verilator) and `diff_screenshots`
+> (lib/png-decoder.ts + lib/png-diff.ts, zero new deps) are now wired and
+> verified through MCP. **17 tools total.** Docs: docs/mcp.md (reference) +
+> docs/mcp-quickstart.md (user guide). Tool surface checked against live
+> `wokwi-cli mcp` v0.26.1. Still open: VCD export, `resume_simulation`,
+> `list_chip_runtimes`. The plan text below is preserved for that work.
+
 A standalone stdio MCP server that lets external AI tools (Claude Desktop, Cursor, Claude Code, VS Code Copilot, LangGraph, etc.) drive SparkBench's simulator, inspect display/GPIO state, compile custom chips, build firmware, and cross-validate against the official Wokwi simulator.
 
 ## Context

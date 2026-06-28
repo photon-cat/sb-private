@@ -91,4 +91,29 @@ steps:
     const clear = scenario.steps[1] as { "clear-serial": boolean };
     expect(clear["clear-serial"]).toBe(true);
   });
+
+  it("parses expect-pin steps", () => {
+    const yaml = `
+name: pin test
+version: 1
+steps:
+  - expect-pin:
+      pin: "13"
+      state: high
+      timeout: 1200
+  - expect-pin:
+      pin: "13"
+      state: low
+`;
+    const scenario = parseScenario(yaml);
+    expect(scenario.steps).toHaveLength(2);
+    const wait = scenario.steps[0] as {
+      "expect-pin": { pin: string; state: string; timeout: number };
+    };
+    expect(wait["expect-pin"].pin).toBe("13");
+    expect(wait["expect-pin"].state).toBe("high");
+    expect(wait["expect-pin"].timeout).toBe(1200);
+    const instant = scenario.steps[1] as { "expect-pin": { state: string } };
+    expect(instant["expect-pin"].state).toBe("low");
+  });
 });

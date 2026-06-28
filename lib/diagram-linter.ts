@@ -75,8 +75,8 @@ export function lintDiagram(
 
   // Walk every connection endpoint
   for (let i = 0; i < diagram.connections.length; i++) {
-    const [fromRef, toRef] = diagram.connections[i];
-    for (const ref of [fromRef, toRef]) {
+    const conn = diagram.connections[i];
+    for (const ref of [conn.from, conn.to]) {
       const idx = ref.indexOf(":");
       if (idx === -1) continue;
       const partId = ref.substring(0, idx);

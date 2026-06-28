@@ -135,7 +135,32 @@ export default function Toolbar({ projectName, onSave, onImportWokwi, onExportWo
             </ListItemIcon>
             <ListItemText>Download ZIP</ListItemText>
           </MenuItem>
+          {onImportWokwi && (
+            <MenuItem onClick={() => { handleImportClick(); setDropdownAnchor(null); }}>
+              <ListItemIcon sx={{ color: "inherit", minWidth: 28 }}>
+                <ArrowDropDownIcon sx={{ fontSize: 16 }} />
+              </ListItemIcon>
+              <ListItemText>Import Wokwi JSON</ListItemText>
+            </MenuItem>
+          )}
+          {onExportWokwi && (
+            <MenuItem onClick={() => { onExportWokwi(); setDropdownAnchor(null); }}>
+              <ListItemIcon sx={{ color: "inherit", minWidth: 28 }}>
+                <FolderZipIcon sx={{ fontSize: 16 }} />
+              </ListItemIcon>
+              <ListItemText>Export Wokwi JSON</ListItemText>
+            </MenuItem>
+          )}
         </Menu>
+        {onImportWokwi && (
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            style={{ display: "none" }}
+            onChange={handleFileChange}
+          />
+        )}
 
         <span className={styles.saveStatus}>
           {dirty && <span className={styles.dirtyDot} title="Unsaved changes" />}

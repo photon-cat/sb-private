@@ -30,6 +30,7 @@ playwright-report/
 .env
 .env.*
 !.env.example
+!.env.local.example
 *.pem
 *.key
 *.p12
@@ -56,7 +57,13 @@ projects/*/sparky-chats.json
 # Local PlatformIO scratch (not part of app source)
 arduino_pio_test/
 
+# Local dev scratch / build artifacts (not part of app source)
+wokwi-dev/
+.playwright-mcp/
+modules/
+
 # Video submission assets
 submission/
 privatedocs/
 avrdebug/
+.stryker-tmp/

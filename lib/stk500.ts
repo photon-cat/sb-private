@@ -165,18 +165,18 @@ export async function flashArduino(
 
     // Drain any pending data (bootloader banner, garbage from reset)
     try {
-      await readBytes(reader, 512, 100);
+      await readBytes(reader!, 512, 100);
     } catch {
       // Expected timeout — just clearing the buffer
     }
 
     // Sync with bootloader
     report("syncing", 10, "Syncing with bootloader...");
-    await getSync(writer, reader);
+    await getSync(writer!, reader!);
 
     // Enter programming mode
     report("programming", 15, "Entering programming mode...");
-    await sendCommand(writer, reader, [Cmnd_STK_ENTER_PROGMODE]);
+    await sendCommand(writer!, reader!, [Cmnd_STK_ENTER_PROGMODE]);
 
     // Parse hex into flash image
     const flash = new Uint8Array(FLASH_SIZE).fill(0xff);
@@ -197,7 +197,7 @@ export async function flashArduino(
       const pageData = flash.slice(byteAddr, byteAddr + PAGE_SIZE);
 
       // Load address (little-endian word address)
-      await writer.write(
+      await writer!.write(
         new Uint8Array([
           Cmnd_STK_LOAD_ADDRESS,
           wordAddr & 0xff,
@@ -205,7 +205,7 @@ export async function flashArduino(
           CRC_EOP,
         ]),
       );
-      const addrResp = await readBytes(reader, 2);
+      const addrResp = await readBytes(reader!, 2);
       if (addrResp[0] !== STK_INSYNC || addrResp[1] !== STK_OK) {
         throw new Error(`Load address failed at page ${page}`);
       }
@@ -219,8 +219,8 @@ export async function flashArduino(
       progCmd.set(pageData, 4);
       progCmd[4 + PAGE_SIZE] = CRC_EOP;
 
-      await writer.write(progCmd);
-      const pageResp = await readBytes(reader, 2, 5000);
+      await writer!.write(progCmd);
+      const pageResp = await readBytes(reader!, 2, 5000);
       if (pageResp[0] !== STK_INSYNC || pageResp[1] !== STK_OK) {
         throw new Error(`Program page failed at address 0x${byteAddr.toString(16)}`);
       }
@@ -231,7 +231,7 @@ export async function flashArduino(
 
     // Leave programming mode
     report("done", 98, "Leaving programming mode...");
-    await sendCommand(writer, reader, [Cmnd_STK_LEAVE_PROGMODE]);
+    await sendCommand(writer!, reader!, [Cmnd_STK_LEAVE_PROGMODE]);
 
     report("done", 100, `Flash complete! ${endAddr} bytes written.`);
   } finally {

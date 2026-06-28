@@ -1,0 +1,6 @@
+name: RP2040 GP15 blink
+version: 1
+steps:
+  - expect-pin: { pin: GP15, state: high, timeout: 1000 }
+  - expect-pin: { pin: GP15, state: low, timeout: 1000 }
+  - expect-pin: { pin: GP15, state: high, timeout: 1000 }

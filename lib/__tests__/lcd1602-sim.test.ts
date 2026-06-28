@@ -129,6 +129,38 @@ describe("LCD1602Controller", () => {
     expect(lcd.backlight).toBe(true);
   });
 
+  it("clamps the cursor at the end of the buffer instead of overflowing", () => {
+    // Buffer is 32 cells (2 rows x 16). Fill all 32 with 'A', then write one
+    // more char. With correct clamping the cursor sticks at the last cell (31)
+    // so the extra char overwrites it; without the upper clamp the char is
+    // dropped and the last cell keeps its 'A'. This kills the `>= BUF_SIZE`
+    // boundary mutants surfaced by mutation testing.
+    sendString(lcd, "A".repeat(32));
+    sendData(lcd, "Z".charCodeAt(0));
+    const lastCell = lcd.toText()[1][15]; // row 1, col 15 = linear index 31
+    expect(lastCell).toBe("Z");
+  });
+
+  it("clamps the cursor at 0 when decrementing past the start", () => {
+    // In decrement mode at column 0, writing advances the cursor to -1. With
+    // the lower clamp it sticks at 0 so the next char overwrites cell 0; without
+    // the clamp the next write is dropped. Kills the `cursorIdx < 0` mutant.
+    sendCommand(lcd, 0x80 | 0x00); // row 0, col 0
+    sendCommand(lcd, 0x04);        // entry mode: decrement
+    sendData(lcd, "A".charCodeAt(0)); // writes 'A' at 0, cursor -> -1 -> clamp 0
+    sendData(lcd, "B".charCodeAt(0)); // overwrites cell 0
+    expect(lcd.toText()[0][0]).toBe("B");
+  });
+
+  it("does not crash or write out of bounds when overrun far past the end", () => {
+    // Writing well beyond capacity must stay confined to the buffer.
+    sendString(lcd, "X".repeat(50));
+    const [r0, r1] = lcd.toText();
+    expect(r0).toHaveLength(16);
+    expect(r1).toHaveLength(16);
+    expect(r1[15]).toBe("X"); // last cell holds the most recent overrun write
+  });
+
   it("non-matching address refuses the connection", () => {
     const twi = makeTwi();
     const other = new LCD1602Controller(twi, 0x27);

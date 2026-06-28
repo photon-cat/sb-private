@@ -198,7 +198,7 @@ export default function AddPartPanel({ onSelect }: AddPartPanelProps) {
 
   // Ensure wokwi elements + custom elements are loaded before rendering thumbnails
   useEffect(() => {
-    import("@wokwi/elements").then(() => {
+    import("@sparkbench/elements").then(() => {
       registerLogicGates();
       registerDipChips();
       setReady(true);

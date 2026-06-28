@@ -1,0 +1,6 @@
+name: STM32 PC13 blink
+version: 1
+steps:
+  - expect-pin: { pin: PC13, state: high, timeout: 500 }
+  - expect-pin: { pin: PC13, state: low, timeout: 500 }
+  - expect-pin: { pin: PC13, state: high, timeout: 500 }

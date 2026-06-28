@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { parsePCBDesign, serializePCB, initPCBFromSchematic } from "../pcb-parser";
 import { parseDiagram } from "../diagram-parser";
 import { extractNetlist } from "../netlist";
-import { DEFAULT_DESIGN_RULES, DEFAULT_STACKUP } from "../pcb-types";
+import { DEFAULT_DESIGN_RULES } from "../pcb-types";
 
 describe("parsePCBDesign", () => {
   it("fills in all defaults for empty input", () => {

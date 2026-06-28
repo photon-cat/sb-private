@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import styles from "./EditorPanel.module.css";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react") as any, {
   ssr: false,
   loading: () => (
@@ -63,7 +63,7 @@ const ARDUINO_TYPES = [
 
 let arduinoThemeRegistered = false;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function registerArduinoTheme(monaco: any) {
   if (arduinoThemeRegistered) return;
   arduinoThemeRegistered = true;
@@ -233,9 +233,9 @@ export default function EditorPanel({
   const [renameValue, setRenameValue] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
   const monacoReady = useRef(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const editorRef = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const decorationsRef = useRef<any>(null);
 
   // Focus rename input when it appears
@@ -359,10 +359,10 @@ export default function EditorPanel({
         onFileContentChange(fileName, value);
       }
     },
-    [activeTab, onSketchChange, onDiagramChange, onPcbChange, onFileContentChange],
+    [activeTab, onSketchChange, onDiagramChange, onPcbChange, onLibrariesChange, onFileContentChange],
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const handleBeforeMount = useCallback((monaco: any) => {
     if (!monacoReady.current) {
       registerArduinoTheme(monaco);
@@ -370,7 +370,7 @@ export default function EditorPanel({
     }
   }, []);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const handleEditorMount = useCallback((editor: any) => {
     editorRef.current = editor;
     if (debugMode && onToggleBreakpointLine) {
@@ -388,7 +388,7 @@ export default function EditorPanel({
     const editor = editorRef.current;
     if (!editor || !debugMode || activeTab !== "sketch") return;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const newDecorations: any[] = [];
 
     if (breakpointLines) {

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { lintDiagram } from "../diagram-linter";
 import { parseDiagram } from "../diagram-parser";
 
-// Minimal pin registry — mirrors what real @wokwi/elements expose for the
+// Minimal pin registry — mirrors what real @sparkbench/elements expose for the
 // parts we care about linting. Keeps the test fully offline.
 const REGISTRY = new Map<string, string[]>([
   ["wokwi-arduino-uno", ["GND.1", "GND.2", "GND.3", "5V", "3.3V", "A0", "A1", "A2", "A3", "A4", "A5", "A4.2", "A5.2", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13"]],

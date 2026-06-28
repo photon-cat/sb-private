@@ -28,7 +28,7 @@ function createMockPort(options: {
   failOnPage?: number;
 } = {}) {
   const written: Uint8Array[] = [];
-  let readQueue: Uint8Array[] = [];
+  const readQueue: Uint8Array[] = [];
   let syncAttempts = 0;
   const syncFailures = options.syncFailures ?? 0;
   const commandResponses = options.commandResponses ?? new Map();

@@ -1,0 +1,8 @@
+name: ili9341-test
+version: 1
+steps:
+  - wait-serial: "DONE"
+  - expect-display: { part-id: tft, not-blank: true }
+  - expect-display: { part-id: tft, pixel: { x: 20, y: 40, rgba: [255, 0, 0, 255] } }
+  - expect-display: { part-id: tft, pixel: { x: 60, y: 40, rgba: [0, 255, 0, 255] } }
+  - expect-display: { part-id: tft, pixel: { x: 100, y: 40, rgba: [0, 0, 255, 255] } }

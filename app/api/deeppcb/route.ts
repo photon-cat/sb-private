@@ -1,19 +1,13 @@
 import { NextResponse } from "next/server";
-import { downloadFile, uploadFile } from "@/lib/storage";
-import { authorizeProjectWrite, getServerSession } from "@/lib/auth-middleware";
 import { DeepPCBClient } from "@/lib/deeppcb-client";
+import { isLocalDev, readLocalFile, writeLocalFile } from "@/lib/local-projects";
+import { validateKiCadPcbForAutoroute } from "@/lib/pcb-pipeline";
 
 // Allow long-running routing jobs (up to 2 hours)
 export const maxDuration = 7200;
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  // Require authentication
-  const session = await getServerSession();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
-
   let projectId: string;
   try {
     const body = await request.json();
@@ -26,9 +20,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid project ID" }, { status: 400 });
   }
 
-  // Require write access to the project
-  const writeResult = await authorizeProjectWrite(projectId);
-  if (writeResult.error) return writeResult.error;
+  let storageProjectId = projectId;
+  let fileManifest: string[] = [];
+  let pcbContent: string | null;
+
+  if (isLocalDev()) {
+    pcbContent = await readLocalFile(projectId, "board.kicad_pcb");
+  } else {
+    const { authorizeProjectWrite, getServerSession } = await import("@/lib/auth-middleware");
+    const { downloadFile } = await import("@/lib/storage");
+
+    const session = await getServerSession();
+    if (!session?.user) {
+      return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+    }
+
+    const writeResult = await authorizeProjectWrite(projectId);
+    if (writeResult.error) return writeResult.error;
+    storageProjectId = writeResult.project.id;
+    fileManifest = (writeResult.project.fileManifest as string[]) || [];
+    pcbContent = await downloadFile(storageProjectId, "board.kicad_pcb");
+  }
 
   const apiKey = process.env.DEEPPCB_API_KEY;
   if (!apiKey) {
@@ -38,11 +50,18 @@ export async function POST(request: Request) {
     );
   }
 
-  const pcbContent = await downloadFile(projectId, "board.kicad_pcb");
   if (!pcbContent) {
     return NextResponse.json(
       { error: "No board.kicad_pcb found for this project. Generate a PCB layout first." },
       { status: 404 },
+    );
+  }
+
+  const validationIssues = validateKiCadPcbForAutoroute(pcbContent);
+  if (validationIssues.length > 0) {
+    return NextResponse.json(
+      { error: "Board is not ready for autorouting.", issues: validationIssues },
+      { status: 400 },
     );
   }
 
@@ -66,8 +85,26 @@ export async function POST(request: Request) {
           });
         });
 
-        // Save the routed board back to MinIO
-        await uploadFile(projectId, "board.kicad_pcb", routedPcb);
+        const resultIssues = validateKiCadPcbForAutoroute(routedPcb);
+        if (resultIssues.length > 0) {
+          throw new Error(`DeepPCB returned an invalid board: ${resultIssues.join(" ")}`);
+        }
+
+        if (isLocalDev()) {
+          await writeLocalFile(storageProjectId, "board.kicad_pcb", routedPcb);
+        } else {
+          const { eq } = await import("drizzle-orm");
+          const { db } = await import("@/lib/db");
+          const { projects } = await import("@/lib/db/schema");
+          const { uploadFile } = await import("@/lib/storage");
+          await uploadFile(storageProjectId, "board.kicad_pcb", routedPcb);
+          const manifest = new Set(fileManifest);
+          manifest.add("board.kicad_pcb");
+          await db
+            .update(projects)
+            .set({ fileManifest: Array.from(manifest), updatedAt: new Date() })
+            .where(eq(projects.id, storageProjectId));
+        }
 
         write({ type: "done", message: "Routing complete! Board updated." });
       } catch (err: unknown) {

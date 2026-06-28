@@ -20,7 +20,6 @@ import type { AVRTWI, TWIEventHandler } from "avr8js";
  */
 
 const BMP180_DEFAULT_ADDR = 0x77;
-const REG_CALIB_START = 0xaa;
 const REG_CHIP_ID = 0xd0;
 const REG_CONTROL = 0xf4;
 const REG_RESULT_MSB = 0xf6;
@@ -116,7 +115,7 @@ function computeRawPressure(pascals: number, UT: number, oss: number): number {
   //          p = p + (X1 + X2 + 3791) / 16
   // Reverse: find UP from target p
   // Start from final p and work backwards
-  let p = pascals;
+  const p = pascals;
   // Reverse the final correction: p_before = p - (X1 + X2 + 3791)/16
   // But X1,X2 depend on p_before... iterate
   let pPrev = p;
@@ -227,7 +226,7 @@ export class BMP180Controller implements TWIEventHandler {
     this.twi.completeWrite(true);
   }
 
-  readByte(ack: boolean): void {
+  readByte(_ack: boolean): void {
     if (!this.connected) {
       this.twi.completeRead(0xff);
       return;

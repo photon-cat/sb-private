@@ -1,4 +1,4 @@
-import { parseDiagram, type Diagram, type DiagramConnection } from "./diagram-parser";
+import { parseDiagram, type Diagram } from "./diagram-parser";
 import { extractNetlist } from "./netlist";
 
 /**
@@ -7,16 +7,13 @@ import { extractNetlist } from "./netlist";
  */
 export function importWokwi(json: unknown): Diagram {
   const diagram = parseDiagram(json);
-  diagram.editor = "sparkbench";
-
-  // Promote attrs.value to first-class value field
-  for (const part of diagram.parts) {
-    if (part.attrs.value && !part.value) {
-      part.value = part.attrs.value;
-    }
-  }
-
-  return diagram;
+  return {
+    ...diagram,
+    editor: "sparkbench",
+    parts: diagram.parts.map((p) =>
+      p.attrs.value && !p.value ? { ...p, value: p.attrs.value } : p
+    ),
+  };
 }
 
 /**
@@ -29,7 +26,7 @@ export function exportToWokwi(diagram: Diagram): Record<string, unknown> {
   // Build set of pin pairs already connected by wires
   const wiredPairs = new Set<string>();
   for (const conn of connections) {
-    const pair = [conn[0], conn[1]].sort().join("||");
+    const pair = [conn.from, conn.to].sort().join("||");
     wiredPairs.add(pair);
   }
 
@@ -59,7 +56,7 @@ export function exportToWokwi(diagram: Diagram): Record<string, unknown> {
         const b = labelPinList[i];
         const pair = [a, b].sort().join("||");
         if (!wiredPairs.has(pair)) {
-          connections.push([a, b, "green", []] as DiagramConnection);
+          connections.push({ from: a, to: b, color: "green", hints: [] });
           wiredPairs.add(pair);
         }
       }
@@ -88,7 +85,7 @@ export function exportToWokwi(diagram: Diagram): Record<string, unknown> {
     author: diagram.author,
     editor: "wokwi",
     parts,
-    connections,
+    connections: connections.map((c) => [c.from, c.to, c.color, c.hints]),
   };
 
   if (diagram.serialMonitor) {

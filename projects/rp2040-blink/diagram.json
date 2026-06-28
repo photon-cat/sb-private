@@ -1,0 +1,11 @@
+{
+  "version": 1, "author": "SparkBench", "editor": "wokwi",
+  "parts": [
+    { "id": "pico", "type": "wokwi-pi-pico", "top": 0, "left": 0, "attrs": {} },
+    { "id": "led1", "type": "wokwi-led", "top": 0, "left": 200, "attrs": { "color": "green" } }
+  ],
+  "connections": [
+    [ "pico:GP15", "led1:A", "green", [] ],
+    [ "led1:C", "pico:GND.1", "black", [] ]
+  ]
+}

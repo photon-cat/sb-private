@@ -11,7 +11,7 @@ import WireAttributePanel from "./WireAttributePanel";
 import LibraryManager from "./LibraryManager";
 import styles from "./SimulationPanel.module.css";
 import { Diagram, DiagramConnection } from "@/lib/diagram-parser";
-import type { AVRRunnerLike } from "@/lib/pin-mapping";
+import type { SimRunner } from "@/lib/sim/sim-runner";
 import { useWebFlash } from "@/hooks/useWebFlash";
 import type { WiredComponent } from "@/lib/wire-components";
 import type { ToolType } from "@/hooks/useWireDrawing";
@@ -41,7 +41,7 @@ const PCB3DViewer = dynamic(() => import("./PCB3DViewer"), {
 
 interface SimulationPanelProps {
   diagram: Diagram | null;
-  runner: AVRRunnerLike | null;
+  runner: SimRunner | null;
   status: "idle" | "compiling" | "running" | "paused" | "error" | "compiled";
   serialOutput: string;
   pcbText: string | null;
@@ -173,7 +173,7 @@ export default function SimulationPanel({
     if (debugMode && debugState && debugState.status !== "idle") {
       setShowInlineDebug(true);
     }
-  }, [debugMode, debugState?.status]);
+  }, [debugMode, debugState]);
 
   const handleDebugResizeDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

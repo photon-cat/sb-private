@@ -1,4 +1,4 @@
-import { AVRIOPort, AVRUSART, AVRTWI, AVRADC, CPU } from "avr8js";
+import { AVRIOPort, AVRUSART, AVRTWI, AVRADC, AVRSPI, CPU } from "avr8js";
 
 export interface PinInfo {
   port: "portB" | "portC" | "portD";
@@ -14,7 +14,12 @@ export interface AVRRunnerLike {
   readonly usart: AVRUSART;
   readonly twi: AVRTWI;
   readonly adc: AVRADC;
+  readonly spi: AVRSPI;
   readonly speed: number;
+  /** Real-time execution loop (the UI driver). Optional: the debug runner steps manually. */
+  execute?(callback?: (cpu: CPU) => void): void;
+  stop(): void;
+  resume?(): void;
 }
 
 /**
@@ -67,4 +72,49 @@ export function mapAtmega328Pin(pinName: string): PinInfo | null {
 /** Get the AVRIOPort instance from a runner given a port name. */
 export function getPort(runner: AVRRunnerLike, portName: PinInfo["port"]): AVRIOPort {
   return runner[portName];
+}
+
+/** STM32 GPIO location: port name ("GPIOA"…) + pin index 0-15. */
+export interface Stm32PinInfo {
+  port: string;
+  pin: number;
+}
+
+/**
+ * Map an STM32 pin name to its GPIO port + pin. Accepts "PA5", "PC13", "PB12"
+ * (optionally with .l/.r/.N suffixes). Port letters A–H. Returns null otherwise.
+ */
+export function mapSTM32Pin(pinName: string): Stm32PinInfo | null {
+  const clean = pinName.replace(/\.\d+$/, "").replace(/\.[lr]$/, "");
+  const m = clean.match(/^P([A-H])(\d{1,2})$/i);
+  if (!m) return null;
+  const pin = parseInt(m[2], 10);
+  if (pin < 0 || pin > 15) return null;
+  return { port: `GPIO${m[1].toUpperCase()}`, pin };
+}
+
+/**
+ * Map a Raspberry Pi Pico pin name to an RP2040 GPIO index (0-29).
+ * Accepts "GP5", "GPIO5", or a bare "5". Power/ground/system pins → null.
+ */
+export function mapRp2040Pin(pinName: string): number | null {
+  const clean = pinName.replace(/\.\d+$/, "").replace(/\.[lr]$/, "");
+  const m = clean.match(/^(?:GP|GPIO)?(\d+)$/i);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return n >= 0 && n <= 29 ? n : null;
+}
+
+/**
+ * Map a Raspberry Pi Pico pin name to an RP2040 ADC channel (0-3), or null if
+ * the pin isn't ADC-capable. Channels 0..3 are GPIO 26..29 (ADC0..ADC3).
+ * Accepts "GP26"/"GPIO26"/"26"/"A0".."A3" (Arduino-Pico analog aliases).
+ */
+export function mapRp2040Adc(pinName: string): number | null {
+  const clean = pinName.replace(/\.\d+$/, "").replace(/\.[lr]$/, "");
+  const a = clean.match(/^A([0-3])$/i);
+  if (a) return parseInt(a[1], 10);
+  const gp = mapRp2040Pin(clean);
+  if (gp != null && gp >= 26 && gp <= 29) return gp - 26;
+  return null;
 }

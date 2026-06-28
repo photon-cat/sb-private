@@ -186,13 +186,13 @@ export function renderWires(
   const wires: RenderedWire[] = [];
 
   for (let ci = 0; ci < connections.length; ci++) {
-    const [fromRef, toRef, color, hints] = connections[ci];
-    const s = pinPositions.get(fromRef);
-    const e = pinPositions.get(toRef);
+    const conn = connections[ci];
+    const s = pinPositions.get(conn.from);
+    const e = pinPositions.get(conn.to);
     if (!s || !e) continue;
 
-    const points = buildWirePath(s, e, hints || []);
-    wires.push({ points, color: mapColor(color), fromRef, toRef, connectionIndex: ci });
+    const points = buildWirePath(s, e, conn.hints || []);
+    wires.push({ points, color: mapColor(conn.color), fromRef: conn.from, toRef: conn.to, connectionIndex: ci });
   }
 
   return wires;

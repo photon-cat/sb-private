@@ -1,0 +1,20 @@
+name: blink
+version: 1
+# Blink toggles pin 13 every 1000ms. Prove the LED pin actually changes state.
+# Uses expect-pin (real GPIO read) since this sketch produces no serial output.
+steps:
+  # Within the first 1.2s the pin must reach HIGH at least once.
+  - expect-pin:
+      pin: "13"
+      state: high
+      timeout: 1200
+  # Then it must go LOW within the next cycle.
+  - expect-pin:
+      pin: "13"
+      state: low
+      timeout: 1200
+  # And HIGH again — confirms it's a repeating toggle, not a one-shot.
+  - expect-pin:
+      pin: "13"
+      state: high
+      timeout: 1200

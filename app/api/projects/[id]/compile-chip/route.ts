@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { execFile } from "child_process";
-import { writeFile, readFile, mkdir, rm, access } from "fs/promises";
+import { writeFile, readFile, mkdir, rm } from "fs/promises";
 import path from "path";
 import os from "os";
 import { nanoid } from "nanoid";

@@ -9,7 +9,7 @@
  */
 
 import { BBox, Vec2 } from "@kicanvas/base/math";
-import { Color, Polygon, Polyline, Renderer } from "@kicanvas/graphics";
+import { Polygon, Polyline, Renderer } from "@kicanvas/graphics";
 import type { BoardTheme } from "@kicanvas/kicad";
 import * as board_items from "@kicanvas/kicad/board";
 import { BoardViewer } from "@kicanvas/viewers/board/viewer";
@@ -66,7 +66,7 @@ export class EditableBoardViewer extends BoardViewer {
         let bestPriority = -1;
         let bestArea = Infinity;
 
-        for (const { layer: _, bbox } of items) {
+        for (const { bbox } of items) {
             const ctx = bbox.context;
             let priority = 0;
 

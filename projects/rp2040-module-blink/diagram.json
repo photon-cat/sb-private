@@ -1,0 +1,11 @@
+{
+  "version": 1, "author": "SparkBench", "editor": "wokwi",
+  "parts": [
+    { "id": "rp", "type": "wokwi-rp2040", "top": 0, "left": 0, "attrs": {} },
+    { "id": "led1", "type": "wokwi-led", "top": 0, "left": 200, "attrs": { "color": "green" } }
+  ],
+  "connections": [
+    [ "rp:GP15", "led1:A", "green", [] ],
+    [ "led1:C", "rp:GND", "black", [] ]
+  ]
+}

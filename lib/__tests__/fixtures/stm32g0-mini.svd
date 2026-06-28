@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Minimal hand-authored CMSIS-SVD for an STM32G0-class part (Cortex-M0+).
+     Real base addresses and IRQ numbers; trimmed to the peripherals the
+     Phase-3 boot test exercises. GPIO sits on the IOPORT bus at 0x50000000. -->
+<device>
+  <name>STM32G0_MINI</name>
+  <peripherals>
+
+    <peripheral>
+      <name>RCC</name>
+      <groupName>RCC</groupName>
+      <baseAddress>0x40021000</baseAddress>
+      <addressBlock>
+        <offset>0</offset>
+        <size>0x400</size>
+        <usage>registers</usage>
+      </addressBlock>
+    </peripheral>
+
+    <peripheral>
+      <name>FLASH</name>
+      <groupName>FLASH</groupName>
+      <baseAddress>0x40022000</baseAddress>
+      <addressBlock>
+        <offset>0</offset>
+        <size>0x400</size>
+        <usage>registers</usage>
+      </addressBlock>
+    </peripheral>
+
+    <peripheral>
+      <name>GPIOA</name>
+      <groupName>GPIO</groupName>
+      <baseAddress>0x50000000</baseAddress>
+      <addressBlock>
+        <offset>0</offset>
+        <size>0x400</size>
+        <usage>registers</usage>
+      </addressBlock>
+    </peripheral>
+
+    <peripheral derivedFrom="GPIOA">
+      <name>GPIOB</name>
+      <baseAddress>0x50000400</baseAddress>
+    </peripheral>
+
+    <peripheral derivedFrom="GPIOA">
+      <name>GPIOC</name>
+      <baseAddress>0x50000800</baseAddress>
+    </peripheral>
+
+    <peripheral>
+      <name>I2C1</name>
+      <groupName>I2C</groupName>
+      <baseAddress>0x40005400</baseAddress>
+      <addressBlock>
+        <offset>0</offset>
+        <size>0x400</size>
+        <usage>registers</usage>
+      </addressBlock>
+      <interrupt>
+        <name>I2C1</name>
+        <value>23</value>
+      </interrupt>
+    </peripheral>
+
+    <peripheral>
+      <name>SPI1</name>
+      <groupName>SPI</groupName>
+      <baseAddress>0x40013000</baseAddress>
+      <addressBlock>
+        <offset>0</offset>
+        <size>0x400</size>
+        <usage>registers</usage>
+      </addressBlock>
+    </peripheral>
+
+    <peripheral>
+      <name>USART1</name>
+      <groupName>USART</groupName>
+      <baseAddress>0x40013800</baseAddress>
+      <addressBlock>
+        <offset>0</offset>
+        <size>0x400</size>
+        <usage>registers</usage>
+      </addressBlock>
+      <interrupt>
+        <name>USART1</name>
+        <value>27</value>
+      </interrupt>
+    </peripheral>
+
+    <peripheral derivedFrom="USART1">
+      <name>USART2</name>
+      <baseAddress>0x40004400</baseAddress>
+      <interrupt>
+        <name>USART2</name>
+        <value>28</value>
+      </interrupt>
+    </peripheral>
+
+  </peripherals>
+</device>

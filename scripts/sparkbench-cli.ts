@@ -25,8 +25,8 @@ const BOLD = "\x1b[1m";
 const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
 
-const BANNER = `${BOLD}${CYAN}⚡ SparkBench CLI${RESET} ${DIM}v0.1.0${RESET}
-${DIM}Hardware development platform — test, fuzz, and manage projects${RESET}
+const BANNER = `${BOLD}${CYAN}⚡ SparkBench CLI${RESET} ${DIM}v0.2.0${RESET}
+${DIM}Hardware development platform — create, compile, simulate, test, and fuzz projects${RESET}
 `;
 
 function printHelp() {
@@ -34,21 +34,34 @@ function printHelp() {
   console.log(`${BOLD}USAGE${RESET}`);
   console.log(`  sparkbench <command> [options]\n`);
   console.log(`${BOLD}COMMANDS${RESET}`);
-  console.log(`  ${GREEN}test${RESET} <project> [--scenario <file>]   Run a YAML test scenario against the simulator`);
-  console.log(`  ${GREEN}serve${RESET} <project> [--port 8765]        Run headless sim with WebSocket API for external programs`);
+  console.log(`  ${GREEN}create${RESET} <name> [--template <t>]       Scaffold a new project from a template`);
+  console.log(`  ${GREEN}compile${RESET} <project> [--json]            Compile firmware without running simulation`);
+  console.log(`  ${GREEN}simulate${RESET} <project> [options]          Run headless MCU simulation with timing controls`);
+  console.log(`  ${GREEN}test${RESET} <project> [--scenario <file>]   Run YAML test scenarios (with custom chip support)`);
+  console.log(`  ${GREEN}spice${RESET} <project> [--tran|--op|--dc]   Run SPICE circuit analysis via ngspice`);
+  console.log(`  ${GREEN}serve${RESET} <project> [--port 8765]        Run headless sim with WebSocket API`);
+  console.log(`  ${GREEN}mcp${RESET} <project>                        Run stdio MCP server for external AI clients`);
+  console.log(`  ${GREEN}run${RESET} <project>                        Alias for simulate`);
   console.log(`  ${GREEN}fuzz${RESET} <project>                       AI-powered security fuzzer (Claude Opus 4.6)`);
   console.log(`  ${GREEN}list${RESET}                                 List all projects with metadata`);
   console.log(`  ${GREEN}help${RESET}                                 Show this help message\n`);
   console.log(`${BOLD}EXAMPLES${RESET}`);
-  console.log(`  ${DIM}# Run the test scenario for combo-safe${RESET}`);
-  console.log(`  sparkbench test combo-safe\n`);
-  console.log(`  ${DIM}# Fuzz the combo-safe project for security vulnerabilities${RESET}`);
+  console.log(`  ${DIM}# Create a new project${RESET}`);
+  console.log(`  sparkbench create my-project --template uno-led\n`);
+  console.log(`  ${DIM}# Compile firmware only${RESET}`);
+  console.log(`  sparkbench compile blink --json\n`);
+  console.log(`  ${DIM}# Simulate with timing controls${RESET}`);
+  console.log(`  sparkbench simulate blink --timeout-ms 5000 --clock-hz 8000000 --json\n`);
+  console.log(`  ${DIM}# Run test scenarios in CI${RESET}`);
+  console.log(`  sparkbench test combo-safe --json --report test-results/combo.json\n`);
+  console.log(`  ${DIM}# Run SPICE analysis${RESET}`);
+  console.log(`  sparkbench spice blink --op --json\n`);
+  console.log(`  ${DIM}# Fuzz for security vulnerabilities${RESET}`);
   console.log(`  sparkbench fuzz combo-safe\n`);
-  console.log(`  ${DIM}# Run a custom scenario file${RESET}`);
-  console.log(`  sparkbench test combo-safe --scenario exploits/timing.yaml\n`);
   console.log(`${BOLD}ENVIRONMENT${RESET}`);
-  console.log(`  ${DIM}ANTHROPIC_API_KEY${RESET}   Required for 'fuzz' command (Claude Opus 4.6)`);
-  console.log(`  ${DIM}PLATFORMIO_CORE_DIR${RESET} Optional PlatformIO install path\n`);
+  console.log(`  ${DIM}ANTHROPIC_API_KEY${RESET}   Required for 'fuzz' command`);
+  console.log(`  ${DIM}PLATFORMIO_CMD${RESET}      Override PlatformIO binary path`);
+  console.log(`  ${DIM}WOKWI_CLI${RESET}           Override wokwi-cli binary path\n`);
 }
 
 function listProjects() {
@@ -116,16 +129,88 @@ if (command === "list" || command === "ls") {
   process.exit(0);
 }
 
-if (command === "test") {
-  // Delegate to run-scenario.ts
+if (command === "create") {
   const subArgs = args.slice(1);
   if (subArgs.length === 0) {
-    console.error(`${RED}Error: 'test' requires a project slug${RESET}`);
-    console.error(`Usage: sparkbench test <project> [--scenario <file>]`);
+    console.error(`${RED}Error: 'create' requires a project name${RESET}`);
+    console.error(`Usage: sparkbench create <name> [--template <t>]`);
     process.exit(2);
   }
   try {
-    execFileSync("npx", ["tsx", path.join(__dirname, "run-scenario.ts"), ...subArgs], {
+    execFileSync("npx", ["tsx", path.join(__dirname, "sparkbench-create.ts"), ...subArgs], {
+      stdio: "inherit",
+      cwd: ROOT,
+    });
+  } catch (e: any) {
+    process.exit(e.status || 1);
+  }
+  process.exit(0);
+}
+
+if (command === "compile") {
+  const subArgs = args.slice(1);
+  if (subArgs.length === 0) {
+    console.error(`${RED}Error: 'compile' requires a project slug${RESET}`);
+    console.error(`Usage: sparkbench compile <project> [--json]`);
+    process.exit(2);
+  }
+  try {
+    execFileSync("npx", ["tsx", path.join(__dirname, "sparkbench-compile.ts"), ...subArgs], {
+      stdio: "inherit",
+      cwd: ROOT,
+    });
+  } catch (e: any) {
+    process.exit(e.status || 1);
+  }
+  process.exit(0);
+}
+
+if (command === "simulate") {
+  const subArgs = args.slice(1);
+  if (subArgs.length === 0) {
+    console.error(`${RED}Error: 'simulate' requires a project slug${RESET}`);
+    console.error(`Usage: sparkbench simulate <project> [options]`);
+    process.exit(2);
+  }
+  try {
+    execFileSync("npx", ["tsx", path.join(__dirname, "sparkbench-simulate.ts"), ...subArgs], {
+      stdio: "inherit",
+      cwd: ROOT,
+    });
+  } catch (e: any) {
+    process.exit(e.status || 1);
+  }
+  process.exit(0);
+}
+
+if (command === "test") {
+  const subArgs = args.slice(1);
+  if (subArgs.length === 0) {
+    console.error(`${RED}Error: 'test' requires a project slug or --all${RESET}`);
+    console.error(`Usage: sparkbench test <project> [--scenario <file>] [--json]`);
+    console.error(`       sparkbench test --all [--json] [--junit <path>]`);
+    process.exit(2);
+  }
+  try {
+    execFileSync("npx", ["tsx", path.join(__dirname, "sparkbench-test.ts"), ...subArgs], {
+      stdio: "inherit",
+      cwd: ROOT,
+    });
+  } catch (e: any) {
+    process.exit(e.status || 1);
+  }
+  process.exit(0);
+}
+
+if (command === "spice") {
+  const subArgs = args.slice(1);
+  if (subArgs.length === 0) {
+    console.error(`${RED}Error: 'spice' requires a project slug or --diagram${RESET}`);
+    console.error(`Usage: sparkbench spice <project> [--op|--tran|--dc]`);
+    process.exit(2);
+  }
+  try {
+    execFileSync("npx", ["tsx", path.join(__dirname, "sparkbench-spice.ts"), ...subArgs], {
       stdio: "inherit",
       cwd: ROOT,
     });
@@ -136,15 +221,15 @@ if (command === "test") {
 }
 
 if (command === "run") {
-  // Mirror of `wokwi-cli` main mode: headless simulation + optional screenshot.
+  // Alias for simulate (backward compatibility)
   const subArgs = args.slice(1);
   if (subArgs.length === 0) {
     console.error(`${RED}Error: 'run' requires a project slug${RESET}`);
-    console.error(`Usage: sparkbench run <project> [--timeout <ms>] [--screenshot-part <id>] [--screenshot-time <ms>] [--screenshot-file <path>]`);
+    console.error(`Usage: sparkbench run <project> [options] (alias for 'simulate')`);
     process.exit(2);
   }
   try {
-    execFileSync("npx", ["tsx", path.join(__dirname, "sparkbench-run.ts"), ...subArgs], {
+    execFileSync("npx", ["tsx", path.join(__dirname, "sparkbench-simulate.ts"), ...subArgs], {
       stdio: "inherit",
       cwd: ROOT,
     });
@@ -163,6 +248,31 @@ if (command === "serve") {
   }
   try {
     execFileSync("npx", ["tsx", path.join(__dirname, "serve-api.ts"), ...subArgs], {
+      stdio: "inherit",
+      cwd: ROOT,
+    });
+  } catch (e: any) {
+    process.exit(e.status || 1);
+  }
+  process.exit(0);
+}
+
+if (command === "mcp") {
+  const subArgs = args.slice(1);
+  if (subArgs.length === 0) {
+    console.error(`${RED}Error: 'mcp' requires a project slug or directory${RESET}`);
+    console.error(`Usage: sparkbench mcp <project>`);
+    process.exit(2);
+  }
+  // Resolve a bare slug to projects/<slug> so the server finds the project.
+  const target = subArgs[0];
+  const asSlug = path.join(PROJECTS_DIR, target);
+  const projectArg =
+    !path.isAbsolute(target) && !target.includes(path.sep) && existsSync(asSlug)
+      ? asSlug
+      : target;
+  try {
+    execFileSync("npx", ["tsx", path.join(__dirname, "sparkbench-mcp.ts"), projectArg, ...subArgs.slice(1)], {
       stdio: "inherit",
       cwd: ROOT,
     });

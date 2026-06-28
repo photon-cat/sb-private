@@ -1,0 +1,15 @@
+{
+  "version": 1, "author": "SparkBench", "editor": "wokwi",
+  "parts": [
+    { "id": "pico", "type": "wokwi-pi-pico", "top": 0, "left": 0, "attrs": {} },
+    { "id": "pot1", "type": "wokwi-potentiometer", "top": 0, "left": 200, "attrs": { "value": "0" } },
+    { "id": "led1", "type": "wokwi-led", "top": 0, "left": 400, "attrs": { "color": "red" } }
+  ],
+  "connections": [
+    [ "pot1:SIG", "pico:GP26", "blue", [] ],
+    [ "pot1:VCC", "pico:3V3", "red", [] ],
+    [ "pot1:GND", "pico:GND.1", "black", [] ],
+    [ "pico:GP15", "led1:A", "green", [] ],
+    [ "led1:C", "pico:GND.2", "black", [] ]
+  ]
+}

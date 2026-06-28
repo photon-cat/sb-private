@@ -18,7 +18,7 @@ import path from "path";
 import os from "os";
 import * as yaml from "js-yaml";
 import { parseDiagram, findMCUs } from "../lib/diagram-parser";
-import { parseScenario, runScenario } from "../lib/scenario-runner";
+import { runScenario } from "../lib/scenario-runner";
 
 const ROOT = path.resolve(__dirname, "..");
 const BUILD_DIR = path.join(ROOT, "_build");
@@ -309,7 +309,7 @@ Output ONLY the YAML scenarios (one per vulnerability), no other text. Start eac
       if (parsed && parsed.name && parsed.steps) {
         scenarios.push({ scenario: parsed, raw: yamlContent });
       }
-    } catch (e) {
+    } catch {
       console.log(`${DIM}  (skipped malformed YAML block)${RESET}`);
     }
   }

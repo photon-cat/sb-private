@@ -114,7 +114,7 @@ export class MPU6050Controller implements TWIEventHandler {
     this.twi.completeWrite(true);
   }
 
-  readByte(ack: boolean): void {
+  readByte(_ack: boolean): void {
     if (!this.connected) {
       this.twi.completeRead(0xff);
       return;

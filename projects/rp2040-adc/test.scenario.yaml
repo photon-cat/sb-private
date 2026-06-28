@@ -1,0 +1,15 @@
+name: RP2040 ADC pot → LED threshold
+version: 1
+steps:
+  # Pot at minimum → reading 0 → LED off
+  - set-control: { part-id: pot1, control: position, value: 0.0 }
+  - delay: 50
+  - expect-pin: { pin: GP15, state: low, timeout: 500 }
+  # Pot at maximum → reading 4095 → LED on
+  - set-control: { part-id: pot1, control: position, value: 1.0 }
+  - delay: 50
+  - expect-pin: { pin: GP15, state: high, timeout: 500 }
+  # Back to minimum → LED off again
+  - set-control: { part-id: pot1, control: position, value: 0.0 }
+  - delay: 50
+  - expect-pin: { pin: GP15, state: low, timeout: 500 }

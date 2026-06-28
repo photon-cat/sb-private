@@ -16,14 +16,6 @@ const INLINE_TAGS = new Set([
   "roundrect_rratio", "chamfer_ratio", "die_length",
 ]);
 
-/** Tags that are bare atoms (no value, just presence). */
-const ATOM_TAGS = new Set([
-  "locked", "placed", "through_hole", "smd", "virtual",
-  "board_only", "exclude_from_pos_files", "exclude_from_bom",
-  "allow_solder_mask_bridges", "allow_missing_courtyard",
-  "remove_unused_layers", "keep_end_layers",
-]);
-
 /** Strings that should NOT be quoted (bare atoms / keywords). */
 const BARE_ATOMS = new Set([
   "yes", "no", "none", "true", "false",
@@ -112,16 +104,6 @@ function isInlineNode(node: List): boolean {
   if (typeof tag === "number") return true;
   return false;
 }
-
-/** Tags that get their own block with indented children. */
-const BLOCK_TAGS = new Set([
-  "kicad_pcb", "footprint", "zone", "setup", "general", "title_block",
-  "pad", "segment", "arc", "via", "gr_line", "gr_arc", "gr_circle",
-  "gr_poly", "gr_rect", "gr_text", "fp_line", "fp_arc", "fp_circle",
-  "fp_poly", "fp_rect", "fp_text", "polygon", "filled_polygon",
-  "fill", "connect_pads", "keepout", "property", "model",
-  "group", "embedded_fonts", "layers",
-]);
 
 /**
  * Serialize an S-expression tree to formatted .kicad_pcb text.

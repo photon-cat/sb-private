@@ -69,7 +69,7 @@ export class SSD1306Controller implements TWIEventHandler {
     this.twi.completeStop();
   }
 
-  connectToSlave(addr: number, write: boolean): void {
+  connectToSlave(addr: number, _write: boolean): void {
     if (addr === this.address) {
       this.connected = true;
       this.expectingControlByte = true;

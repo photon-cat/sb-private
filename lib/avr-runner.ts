@@ -12,18 +12,24 @@ import {
   AVRUSART,
   AVRTWI,
   AVRADC,
+  AVRSPI,
   portBConfig,
   portCConfig,
   portDConfig,
   usart0Config,
   twiConfig,
   adcConfig,
+  spiConfig,
 } from "avr8js";
 import { loadHex } from "./intelhex";
 import { MicroTaskScheduler } from "./task-scheduler";
 
 // ATmega328p flash size
 const FLASH = 0x8000;
+
+export interface AVRRunnerOptions {
+  clockHz?: number;
+}
 
 export class AVRRunner {
   readonly program = new Uint16Array(FLASH);
@@ -37,16 +43,24 @@ export class AVRRunner {
   readonly usart: AVRUSART;
   readonly twi: AVRTWI;
   readonly adc: AVRADC;
-  readonly speed = 16e6; // 16 MHz
+  readonly spi: AVRSPI;
+  readonly speed: number;
   readonly workUnitCycles = 500000;
   readonly taskScheduler = new MicroTaskScheduler();
   private wallStartMs = 0;
   private simStartCycles = 0;
   private stopped = false;
 
-  constructor(hex: string) {
+  constructor(hex: string, options?: AVRRunnerOptions) {
+    if (options?.clockHz !== undefined && (options.clockHz <= 0 || !isFinite(options.clockHz))) {
+      throw new Error(`clockHz must be a positive finite number, got ${options.clockHz}`);
+    }
+    this.speed = options?.clockHz ?? 16e6;
     loadHex(hex, new Uint8Array(this.program.buffer));
-    this.cpu = new CPU(this.program);
+    // ATmega328P has 2 KB SRAM → RAMEND 0x8FF. avr8js defaults to a larger SRAM,
+    // which gives the wrong reset SP/RAMEND (verified against simavr); size it
+    // explicitly so stack/RAMEND behavior matches real hardware.
+    this.cpu = new CPU(this.program, 2048);
     this.timer0 = new AVRTimer(this.cpu, timer0Config);
     this.timer1 = new AVRTimer(this.cpu, timer1Config);
     this.timer2 = new AVRTimer(this.cpu, timer2Config);
@@ -56,6 +70,7 @@ export class AVRRunner {
     this.usart = new AVRUSART(this.cpu, usart0Config, this.speed);
     this.twi = new AVRTWI(this.cpu, twiConfig, this.speed);
     this.adc = new AVRADC(this.cpu, adcConfig);
+    this.spi = new AVRSPI(this.cpu, spiConfig, this.speed);
     this.taskScheduler.start();
   }
 

@@ -73,8 +73,8 @@ export function extractNetlist(diagram: Diagram): Netlist {
   const labels = diagram.labels ?? [];
 
   // Union directly-connected pins
-  for (const [fromPin, toPin] of diagram.connections) {
-    uf.union(fromPin, toPin);
+  for (const conn of diagram.connections) {
+    uf.union(conn.from, conn.to);
   }
 
   // Global labels: same name → same net

@@ -15,7 +15,7 @@
 //
 // We decode this into full HD44780 bytes, then apply them to a 32-byte
 // character buffer. The character buffer is exposed on the controller and can
-// be handed to `@wokwi/elements`' `<wokwi-lcd1602>` element for rendering.
+// be handed to `@sparkbench/elements`' `<wokwi-lcd1602>` element for rendering.
 //
 // Supported HD44780 instructions: clear display, return home, set DDRAM
 // address, entry mode (direction), display on/off, and character writes.

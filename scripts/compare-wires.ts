@@ -21,7 +21,7 @@
  */
 
 import { execFileSync } from "child_process";
-import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { writeFileSync, mkdirSync } from "fs";
 import path from "path";
 import os from "os";
 
@@ -41,13 +41,6 @@ interface Dump {
   url: string;
   wireCount: number;
   wires: Wire[];
-}
-
-// Normalize RGB strings ("rgb(238, 0, 0)") to a canonical "r,g,b" tuple.
-function normalizeColor(rgb: string): string {
-  const m = rgb.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-  if (!m) return rgb;
-  return `${m[1]},${m[2]},${m[3]}`;
 }
 
 // Classify a color into a coarse bucket so Wokwi's "#dd0000" and
@@ -121,16 +114,6 @@ function shapeFingerprint(w: Wire): string {
   const flip: Record<string, string> = { N: "S", S: "N", E: "W", W: "E" };
   const backward = dirs.slice().reverse().map((d) => flip[d]).join("");
   return forward < backward ? forward : backward;
-}
-
-// Compute the end-to-end delta of a wire (start → end) relative to the
-// startPart center, normalized to the smaller coordinate system's scale.
-function endToEnd(w: Wire): { dx: number; dy: number; length: number } {
-  const a = w.points[0];
-  const b = w.points[w.points.length - 1];
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  return { dx, dy, length: Math.hypot(dx, dy) };
 }
 
 function loadDump(src: "wokwi" | "sparkbench", url: string): Dump {

@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import CloseIcon from "@mui/icons-material/Close";
 import SendIcon from "@mui/icons-material/Send";
 import AddIcon from "@mui/icons-material/Add";
-import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CheckIcon from "@mui/icons-material/Check";
 import UndoIcon from "@mui/icons-material/Undo";
@@ -282,13 +281,13 @@ export default function SparkyChat({
   const [input, setInput] = useState("");
   const [selectedModel, setSelectedModel] = useState("claude-sonnet-4-6");
   const [streaming, setStreaming] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [, setLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const activeChat = chats.find((c) => c.id === activeChatId) || null;
-  const messages = activeChat?.messages || [];
+  const messages = useMemo(() => activeChat?.messages || [], [activeChat]);
 
   // Load chats from server on mount
   useEffect(() => {
@@ -416,7 +415,7 @@ export default function SparkyChat({
     abortRef.current = controller;
 
     let currentContent = "";
-    let currentTools: { name: string; detail: string }[] = [];
+    const currentTools: { name: string; detail: string }[] = [];
     let filesChanged = false;
 
     try {

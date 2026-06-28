@@ -5,6 +5,7 @@ import path from "path";
 import os from "os";
 import { nanoid } from "nanoid";
 import { isLocalDev, localProjectExists } from "@/lib/local-projects";
+import { pickSimCore } from "@/lib/sim/sim-core";
 
 const PIO_CMD = process.env.PIO_CMD
   || (isLocalDev() ? findLocalPio() : "/usr/bin/platformio");
@@ -25,10 +26,17 @@ const SANDBOX_ENABLED = process.env.SANDBOX_ENABLED === "true";
 
 const AVR_BOARDS = ["uno", "nano", "mega", "atmega328p", "leonardo", "micro", "pro", "promini"];
 const ESP32_BOARDS = ["esp32dev", "esp32-s3-devkitc-1", "nodemcu-32s", "esp32-c3-devkitm-1"];
-const VALID_BOARDS = [...AVR_BOARDS, ...ESP32_BOARDS];
+const STM32_BOARDS = ["bluepill_f103c8", "genericSTM32F103C8", "blackpill_f103c8"];
+const RP2040_BOARDS = ["pico", "rpipico", "rpipicow"];
+const VALID_BOARDS = [...AVR_BOARDS, ...ESP32_BOARDS, ...STM32_BOARDS, ...RP2040_BOARDS];
 
-function getPlatform(board: string): "atmelavr" | "espressif32" {
-  return ESP32_BOARDS.includes(board) ? "espressif32" : "atmelavr";
+type BuildPlatform = "atmelavr" | "espressif32" | "ststm32" | "raspberrypi";
+
+function getPlatform(board: string): BuildPlatform {
+  if (ESP32_BOARDS.includes(board)) return "espressif32";
+  if (STM32_BOARDS.includes(board)) return "ststm32";
+  if (RP2040_BOARDS.includes(board)) return "raspberrypi";
+  return "atmelavr";
 }
 const VALID_FILENAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 const VALID_LIB_NAME = /^[a-zA-Z0-9_.@\/ -]+$/;
@@ -281,7 +289,15 @@ export async function POST(
       return `[env:${b}]\nplatform = espressif32\nboard = ${b}\nframework = arduino\nmonitor_speed = 115200\n${libSection}\n`;
     }).join("\n");
 
-    const pioIni = `${avrEnvs}\n${esp32Envs}`;
+    const stm32Envs = STM32_BOARDS.map((b) => {
+      return `[env:${b}]\nplatform = ststm32\nboard = ${b}\nframework = arduino\nupload_protocol = stlink\nmonitor_speed = 115200\n${libSection}\n`;
+    }).join("\n");
+
+    const rp2040Envs = RP2040_BOARDS.map((b) => {
+      return `[env:${b}]\nplatform = raspberrypi\nboard = ${b}\nframework = arduino\nmonitor_speed = 115200\n${libSection}\n`;
+    }).join("\n");
+
+    const pioIni = `${avrEnvs}\n${esp32Envs}\n${stm32Envs}\n${rp2040Envs}`;
     await writeFile(path.join(BUILD_DIR, "platformio.ini"), pioIni);
 
     // Ensure build directories exist
@@ -338,7 +354,8 @@ export async function POST(
     let result: { code: number; stdout: string; stderr: string };
     let sandboxArtifacts: Map<string, Buffer> | undefined;
 
-    const firmwareExt = platform === "espressif32" ? "bin" : "hex";
+    // AVR runs from Intel HEX, RP2040 from a UF2, STM32/ESP32 from a raw .bin.
+    const firmwareExt = platform === "atmelavr" ? "hex" : platform === "raspberrypi" ? "uf2" : "bin";
     const firmwareFile = `firmware.${firmwareExt}`;
 
     if (SANDBOX_ENABLED) {
@@ -416,8 +433,8 @@ export async function POST(
     let hex: string;
     let bin: string | undefined;
 
-    if (platform === "espressif32") {
-      // ESP32: read .bin as base64
+    if (platform === "espressif32" || platform === "ststm32" || platform === "raspberrypi") {
+      // ESP32/STM32 (.bin) and RP2040 (.uf2): read firmware bytes as base64
       let binBuffer: Buffer;
       if (sandboxArtifacts?.has(firmwareArtifactKey)) {
         binBuffer = sandboxArtifacts.get(firmwareArtifactKey)!;
@@ -426,7 +443,7 @@ export async function POST(
         binBuffer = await readFile(binPath);
       }
       bin = binBuffer.toString("base64");
-      hex = ""; // no hex for ESP32
+      hex = ""; // no hex for ESP32 / STM32
     } else {
       // AVR: read .hex as text
       if (sandboxArtifacts?.has(firmwareArtifactKey)) {
@@ -479,7 +496,7 @@ export async function POST(
       const { logActivity } = await import("@/lib/logger");
 
       const hexKey = `builds/${buildId}/${firmwareFile}`;
-      const uploadContent = platform === "espressif32" ? bin! : hex;
+      const uploadContent = platform === "atmelavr" ? hex : bin!;
       await uploadFile(projectId, hexKey, uploadContent);
 
       await db.insert(builds).values({
@@ -506,6 +523,10 @@ export async function POST(
       ...(bin ? { bin } : {}),
       platform,
       simulatable: platform === "atmelavr",
+      // Forward-looking: which in-browser core can run this firmware. STM32
+      // (cortex-m0 / unicorn-arm) and AVR (avr8js) are supported engines; the
+      // client uses this to instantiate the right runner. ESP32 → null.
+      simCore: pickSimCore(board),
       stdout: result.stdout,
       stderr: result.stderr,
       ...(sourceMap ? { sourceMap } : {}),
