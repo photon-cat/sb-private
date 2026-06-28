@@ -22,7 +22,7 @@
  * See docs/roadmap-in-browser-compile.md and docs/phase1-avr-wasm-spike.md.
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const WASMER_SDK_URL = "https://unpkg.com/@wasmer/sdk@0.10.0/dist/index.mjs";
 
@@ -57,8 +57,9 @@ interface Stage {
 
 const INITIAL_STAGES: Stage[] = [
   { id: "load", label: "Load clang.wasm (@wasmer/sdk, ~100 MB first run)", status: "pending", detail: "" },
-  { id: "targets", label: "Probe clang -print-targets (is AVR backend present?)", status: "pending", detail: "" },
+  { id: "targets", label: "Probe clang -print-targets (AVR + ARM backends present?)", status: "pending", detail: "" },
   { id: "avr", label: "clang --target=avr -mmcu=atmega328p -c  (C → AVR object)", status: "pending", detail: "" },
+  { id: "arm", label: "clang --target=arm-none-eabi -mcpu=cortex-m0plus -c  (C → ARM object)", status: "pending", detail: "" },
   { id: "control", label: "Positive control: clang C → wasm32 (toolchain works?)", status: "pending", detail: "" },
 ];
 
@@ -94,13 +95,18 @@ function getErrorMessage(error: unknown): string {
 
 export default function AvrWasmTestPage() {
   const [source, setSource] = useState(DEFAULT_SOURCE);
+  // Default is the stock wasm-only clang; point this at our custom WebAssembly;ARM;AVR
+  // build (see docs/build-clang-wasm.md) once it exists — no code change needed.
+  const [pkg, setPkg] = useState("clang/clang");
   const [stages, setStages] = useState<Stage[]>(INITIAL_STAGES);
   const [log, setLog] = useState<string>("");
   const [busy, setBusy] = useState(false);
-  const [isolated] = useState<boolean>(
-    typeof window !== "undefined" &&
-      (window as unknown as { crossOriginIsolated?: boolean }).crossOriginIsolated === true,
-  );
+  // Computed after mount to avoid an SSR/client hydration mismatch (window is
+  // undefined on the server, so the initial render must match the server's `false`).
+  const [isolated, setIsolated] = useState(false);
+  useEffect(() => {
+    setIsolated((window as unknown as { crossOriginIsolated?: boolean }).crossOriginIsolated === true);
+  }, []);
   const startedAt = useRef<number>(0);
 
   const append = useCallback((line: string) => setLog((prev) => prev + line + "\n"), []);
@@ -121,8 +127,8 @@ export default function AvrWasmTestPage() {
       const dynamicImport = new Function("u", "return import(u)") as (u: string) => Promise<unknown>;
       const sdk = (await dynamicImport(WASMER_SDK_URL)) as WasmerSdk;
       await sdk.init();
-      append("Fetching clang/clang from the Wasmer registry (cached after first run)…");
-      const clang = await sdk.Wasmer.fromRegistry("clang/clang");
+      append(`Fetching ${pkg} from the Wasmer registry (cached after first run)…`);
+      const clang = await sdk.Wasmer.fromRegistry(pkg);
       const dir = new sdk.Directory();
       await dir.writeFile("blink.c", source);
       setStage("load", "pass", `ready in ${((performance.now() - startedAt.current) / 1000).toFixed(1)}s`);
@@ -142,28 +148,42 @@ export default function AvrWasmTestPage() {
       const ver = await runClang(["--version"]);
       const tgt = await runClang(["-print-targets"]);
       const hasAvr = /(^|\s)avr\b/i.test(tgt.stdout);
+      const hasArm = /(^|\s)arm\b/i.test(tgt.stdout);
       const triple = (ver.stdout.match(/Target:\s*(\S+)/)?.[1]) ?? "unknown";
-      setStage("targets", hasAvr ? "pass" : "fail", `${triple}; AVR backend ${hasAvr ? "present" : "ABSENT"}`);
-      append(`\nclang triple: ${triple} — AVR backend ${hasAvr ? "present ✅" : "absent ⛔"}`);
+      setStage("targets", hasAvr && hasArm ? "pass" : "fail",
+        `${triple}; AVR ${hasAvr ? "✓" : "✗"} · ARM ${hasArm ? "✓" : "✗"}`);
+      append(`\nclang triple: ${triple} — AVR backend ${hasAvr ? "present ✅" : "absent ⛔"}, ARM backend ${hasArm ? "present ✅" : "absent ⛔"}`);
 
       // ---- Stage 2: AVR object (only if the backend exists) ---------------------
       if (hasAvr) {
         setStage("avr", "running");
-        const oOut = await runClang([
-          "--target=avr", "-mmcu=atmega328p", "-Os", "-c",
-          "/project/blink.c", "-o", "/project/blink.o",
-        ]);
+        const oOut = await runClang(["--target=avr", "-mmcu=atmega328p", "-Os", "-c", "/project/blink.c", "-o", "/project/avr.o"]);
         if (oOut.ok) {
-          const obj = await dir.readFile("blink.o");
+          const obj = await dir.readFile("avr.o");
           const isElf = obj[0] === 0x7f && obj[1] === 0x45 && obj[2] === 0x4c && obj[3] === 0x46;
           setStage("avr", "pass", `${obj.length} byte ${isElf ? "AVR ELF object" : "object"} — codegen works in-browser!`);
         } else {
           setStage("avr", "fail", `exit ${oOut.code} — see log`);
         }
       } else {
-        setStage("avr", "blocked", "needs a custom AVR-enabled clang.wasm (this build is wasm-only)");
-        append("\n⛔ This clang.wasm has no AVR backend, so --target=avr is impossible with it.");
-        append("   Building our own clang.wasm with LLVM_TARGETS_TO_BUILD including AVR is the Phase 1 work.");
+        setStage("avr", "blocked", "needs a clang.wasm with the AVR backend (see build-clang-wasm.md)");
+        append("\n🚧 AVR backend absent — --target=avr impossible with this build.");
+      }
+
+      // ---- Stage 3: ARM object (covers RP2040 + STM32 F4/H7) --------------------
+      if (hasArm) {
+        setStage("arm", "running");
+        const aOut = await runClang(["--target=arm-none-eabi", "-mcpu=cortex-m0plus", "-mthumb", "-Os", "-c", "/project/blink.c", "-o", "/project/arm.o"]);
+        if (aOut.ok) {
+          const obj = await dir.readFile("arm.o");
+          const isElf = obj[0] === 0x7f && obj[1] === 0x45 && obj[2] === 0x4c && obj[3] === 0x46;
+          setStage("arm", "pass", `${obj.length} byte ${isElf ? "ARM ELF object" : "object"} — codegen works in-browser!`);
+        } else {
+          setStage("arm", "fail", `exit ${aOut.code} — see log`);
+        }
+      } else {
+        setStage("arm", "blocked", "needs a clang.wasm with the ARM backend (see build-clang-wasm.md)");
+        append("\n🚧 ARM backend absent — --target=arm-none-eabi impossible with this build.");
       }
 
       // ---- Stage 3: positive control — prove the in-browser toolchain runs ------
@@ -188,7 +208,7 @@ export default function AvrWasmTestPage() {
     } finally {
       setBusy(false);
     }
-  }, [source, append, setStage]);
+  }, [source, pkg, append, setStage]);
 
   const icon = (s: StageStatus) =>
     s === "pass" ? "✅" : s === "fail" ? "⛔" : s === "blocked" ? "🚧" : s === "running" ? "⏳" : "•";
@@ -207,6 +227,17 @@ export default function AvrWasmTestPage() {
         <strong style={{ color: isolated ? "#15803d" : "#b91c1c" }}>{String(isolated)}</strong>
         {!isolated && " — threaded clang.wasm may not start (check COOP/COEP headers)."}
       </div>
+
+      <label style={{ display: "block", fontSize: 13, margin: "8px 0 4px", color: "#444" }}>
+        Wasmer clang package (default <code>clang/clang</code> is wasm-only; point at our
+        WebAssembly;ARM;AVR build once it exists):
+      </label>
+      <input
+        value={pkg}
+        onChange={(e) => setPkg(e.target.value)}
+        spellCheck={false}
+        style={{ width: "100%", fontFamily: "ui-monospace, monospace", fontSize: 13, padding: 8, border: "1px solid #ccc", borderRadius: 8, marginBottom: 8 }}
+      />
 
       <textarea
         value={source}
