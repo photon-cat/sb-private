@@ -17,6 +17,16 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
+        // In-browser AVR compile spike (Phase 1): @wasmer/sdk runs a threaded
+        // clang.wasm, which requires cross-origin isolation (SharedArrayBuffer).
+        // COEP credentialless lets the cross-origin clang package load without CORP.
+        source: "/avr-wasm-test",
+        headers: [
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Embedder-Policy", value: "credentialless" },
+        ],
+      },
+      {
         // SVG files served with Content-Disposition to prevent XSS
         source: "/api/projects/:id/outline",
         headers: [
