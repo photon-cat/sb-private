@@ -64,6 +64,17 @@ export const verifications = pgTable("verifications", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Better-Auth `jwt` plugin keystore. Holds the signing key pair whose public half
+// is published at /api/auth/jwks for stateless JWT verification at the edge.
+// Managed by Better-Auth; declared here so `drizzle-kit push` creates the table.
+export const jwks = pgTable("jwks", {
+  id: text("id").primaryKey(),
+  publicKey: text("public_key").notNull(),
+  privateKey: text("private_key").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at"),
+});
+
 // ─── App tables ───
 
 export const projects = pgTable("projects", {
